@@ -1,6 +1,27 @@
+# Python
 __pycache__/
 *.pyc
-data/raw/
-data/processed/
-models/
-results/
+*.pyo
+
+# Virtual environments
+venv/
+yolov8-env/
+pbl4-env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Dataset / model nặng
+datasets/
+*.pt
+*.h5
+*.onnx
+*.pb
+*.ckpt
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
