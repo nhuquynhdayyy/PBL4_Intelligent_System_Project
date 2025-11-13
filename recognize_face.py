@@ -39,46 +39,47 @@ def recognize_face(frame):
 
     return best_match, round(best_conf, 2)
 
-# --- 4️⃣ Nhận diện real-time ---
-cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+if __name__ == "__main__":
+    # --- 4️⃣ Nhận diện real-time ---
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-if not cap.isOpened():
-    print("❌ Không thể mở camera.")
-    exit()
+    if not cap.isOpened():
+        print("❌ Không thể mở camera.")
+        exit()
 
-print("[INFO] Bắt đầu nhận diện... (Nhấn ESC để thoát)")
+    print("[INFO] Bắt đầu nhận diện... (Nhấn ESC để thoát)")
 
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        print("⚠️ Không đọc được frame từ camera.")
-        break
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("⚠️ Không đọc được frame từ camera.")
+            break
 
-    frame_small = cv2.resize(frame, (480, 360))
+        frame_small = cv2.resize(frame, (480, 360))
 
-    # --- Nhận diện khuôn mặt ---
-    student_id, conf = recognize_face(frame_small)
+        # --- Nhận diện khuôn mặt ---
+        student_id, conf = recognize_face(frame_small)
 
-    # --- Hiển thị kết quả trên màn hình ---
-    label = f"{student_id} ({conf*100:.0f}%)"
-    color = (0, 255, 0) if student_id != "unknown" else (0, 0, 255)
-    cv2.putText(frame, label, (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+        # --- Hiển thị kết quả trên màn hình ---
+        label = f"{student_id} ({conf*100:.0f}%)"
+        color = (0, 255, 0) if student_id != "unknown" else (0, 0, 255)
+        cv2.putText(frame, label, (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
 
-    cv2.imshow("Face Recognition", frame)
+        cv2.imshow("Face Recognition", frame)
 
-    # --- ✅ In ra terminal mỗi lần có nhận diện ---
-    if student_id != "unknown":
-        print({
-            "student_id": student_id,
-            "confidence": conf
-        })
+        # --- ✅ In ra terminal mỗi lần có nhận diện ---
+        if student_id != "unknown":
+            print({
+                "student_id": student_id,
+                "confidence": conf
+            })
 
-    # --- Thoát bằng ESC ---
-    if cv2.waitKey(1) & 0xFF == 27:
-        break
+        # --- Thoát bằng ESC ---
+        if cv2.waitKey(1) & 0xFF == 27:
+            break
 
-cap.release()
-cv2.destroyAllWindows()
+    cap.release()
+    cv2.destroyAllWindows()
 
