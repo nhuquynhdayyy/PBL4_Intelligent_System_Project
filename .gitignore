@@ -27,3 +27,6 @@ datasets/
 .idea/
 
 classroom-images-or-hand-raised-detection-dataset.zip
+
+*.zip
+datasets/
