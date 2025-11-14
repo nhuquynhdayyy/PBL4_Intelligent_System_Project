@@ -1,3 +1,6 @@
+# capture_faces.py
+# Chụp ảnh khuôn mặt để tạo cơ sở dữ liệu
+
 import cv2, os
 
 student_id = input("Nhập ID và tên học sinh (VD: 001_NguyenVanA): ")

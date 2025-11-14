@@ -1,3 +1,4 @@
+# Nhận diện khuôn mặt từ webcam và so sánh với ảnh đã chụp
 from deepface import DeepFace
 import cv2
 

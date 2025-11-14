@@ -31,7 +31,13 @@
 
 # print(f"[DONE] Đã tạo face_db.pkl với {len(face_db)} học sinh.")
 
-
+# build_face_db.py
+# Tạo cơ sở dữ liệu khuôn mặt từ thư mục ảnh học sinh
+# Kết quả lưu vào file face_db.pkl
+# Mỗi entry trong DB có dạng: { "student_id": [embedding1, embedding2, ...], ... }
+# Embedding là vector đặc trưng khuôn mặt trích xuất bằng Facenet
+# Embedding dùng để so khớp khi nhận diện khuôn mặt
+# Sử dụng DeepFace để trích xuất embedding
 from deepface import DeepFace
 import os, pickle
 

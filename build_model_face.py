@@ -1,4 +1,10 @@
 # build_model_face.py
+# Lưu model pre-trained của DeepFace (Facenet) ra file .pt
+# Dùng để kiểm tra và tái sử dụng model sau này
+# Lưu ý: DeepFace sử dụng TensorFlow/Keras làm backend, không phải PyTorch,
+# nên việc lưu bằng torch.save() có thể không hoạt động như mong đợi.
+# Tuy nhiên, ta vẫn có thể lưu model để tham khảo.
+# Nếu cần sử dụng lại, DeepFace sẽ tự động tải từ cache.
 from deepface import DeepFace
 import torch
 

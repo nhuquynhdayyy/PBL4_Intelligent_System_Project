@@ -1,4 +1,5 @@
 # recognize_face.py
+# Nhận diện khuôn mặt đơn với Facenet
 from deepface import DeepFace
 import cv2, numpy as np, pickle, os
 from scipy.spatial.distance import cosine

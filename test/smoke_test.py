@@ -1,3 +1,4 @@
+# Kiểm tra các thư viện quan trọng đã được cài đặt đúng chưa
 import cv2
 print("cv2:", cv2.__version__)
 import torch

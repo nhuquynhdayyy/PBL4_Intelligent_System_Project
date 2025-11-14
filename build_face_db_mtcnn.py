@@ -1,4 +1,17 @@
 # build_face_db_mtcnn.py
+# Tạo cơ sở dữ liệu khuôn mặt từ thư mục ảnh học sinh
+# Sử dụng MTCNN để dò khuôn mặt, Facenet để trích xuất embedding
+# Kết quả lưu vào file face_db.pkl
+# Mỗi entry trong DB có dạng: { "student_id": [embedding1, embedding2, ...], ... }
+# Embedding là vector đặc trưng khuôn mặt trích xuất bằng Facenet
+# Embedding dùng để so khớp khi nhận diện khuôn mặt
+# Sử dụng DeepFace để trích xuất embedding
+# Sử dụng tqdm để hiển thị tiến trình
+# Cải thiện độ chính xác khi dò khuôn mặt bằng MTCNN
+# Thích hợp cho các bộ dữ liệu có nhiều ảnh phức tạp
+# Yêu cầu cài đặt: pip install deepface tqdm
+# Lưu ý: Quá trình trích xuất có thể mất thời gian tùy vào số lượng ảnh
+
 from deepface import DeepFace
 import os, pickle, numpy as np, cv2
 from tqdm import tqdm

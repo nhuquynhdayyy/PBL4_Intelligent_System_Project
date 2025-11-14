@@ -1,3 +1,4 @@
+# Nhận diện khuôn mặt từ webcam và so sánh với cơ sở dữ liệu khuôn mặt đã lưu trong face_db.pkl
 from deepface import DeepFace
 import cv2
 

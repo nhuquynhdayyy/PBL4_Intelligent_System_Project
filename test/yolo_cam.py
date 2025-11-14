@@ -1,4 +1,5 @@
 # yolo_cam.py
+# Mở camera, phát hiện và đếm sự kiện giơ tay sử dụng YOLOv8
 import cv2, time
 from ultralytics import YOLO
 

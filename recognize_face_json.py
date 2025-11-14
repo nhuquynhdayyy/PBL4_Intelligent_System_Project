@@ -1,4 +1,5 @@
 # recognize_face_json.py
+# Nhận diện khuôn mặt đơn với Facenet và xuất kết quả ra JSON
 from deepface import DeepFace
 import cv2, numpy as np, pickle, os, json, datetime
 from scipy.spatial.distance import cosine

@@ -88,6 +88,7 @@
 # cap.release()
 # cv2.destroyAllWindows()
 
+## Nhận diện nhiều khuôn mặt với Facenet (sửa lỗi căn chỉnh)
 from deepface import DeepFace
 import cv2, pickle, numpy as np, time
 from scipy.spatial.distance import cosine
