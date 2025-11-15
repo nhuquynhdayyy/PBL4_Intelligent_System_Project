@@ -85,6 +85,7 @@ async def ai_processing_handler(websocket):
                         face_crop = frame[fy1:fy2, fx1:fx2]
                         if face_crop.size > 0:
                             zoom_face = cv2.resize(face_crop, (480, 480))
+                            cv2.imshow("Zoom Face", zoom_face) 
                             student_id, conf = recognize_face(zoom_face)
                             print(f"[INFO] Đứng ổn định: {student_id} ({conf:.2f})")
 
