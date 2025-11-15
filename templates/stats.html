@@ -1,0 +1,60 @@
+{% extends "layout.html" %}
+{% block title %}Thống kê & Phân tích{% endblock %}
+
+{% block styles %}
+    {# Nạp file CSS dành riêng cho trang Thống kê #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/stats.css') }}">
+{% endblock %}
+
+{% block content %}
+    <div class="page-header">
+        <h2>📈 Thống kê & Phân tích - Lớp 10/1</h2>
+    </div>
+
+    <div class="stats-grid">
+        <!-- Phần 1: Top học sinh tích cực -->
+        <div class="stat-card" id="top-students-card">
+            <div class="card-header">
+                <h3><i class="fas fa-trophy"></i> Top học sinh tích cực nhất</h3>
+                <small>Tổng hợp từ tất cả các môn</small>
+            </div>
+            <div class="card-body">
+                <div id="topStudentsRanking">
+                    <p class="placeholder-text">Đang tải bảng xếp hạng...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Phần 3: Xu hướng học sinh (Dùng AI) - Chuyển lên trên -->
+        <div class="stat-card" id="ai-trends-card">
+            <div class="card-header">
+                <h3><i class="fas fa-brain"></i> Phân tích Xu hướng</h3>
+                 <small>AI-Powered Insights</small>
+            </div>
+            <div class="card-body">
+                <div id="studentTrends">
+                    <h4>📊 Phân tích khuynh hướng môn học</h4>
+                    <p id="aiAnalysisResult" class="placeholder-text">AI đang phân tích dữ liệu, vui lòng chờ...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Phần 2: Phân tích theo môn học -->
+    <div class="stat-card full-width-card" id="subject-analysis-card">
+        <div class="card-header">
+             <h3><i class="fas fa-book-open"></i> Phân tích theo từng môn học</h3>
+        </div>
+        <div class="card-body">
+             <div id="subjectAnalysis">
+                <p class="placeholder-text">Đang tải phân tích môn học...</p>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    {# Nạp file JS dành riêng cho trang Thống kê #}
+    <script src="{{ url_for('static', filename='js/stats.js') }}"></script>
+{% endblock %}

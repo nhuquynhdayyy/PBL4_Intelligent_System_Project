@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống AI Quản lý Lớp học - Lớp 10/1</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: #333; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .header { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header h1 { color: #667eea; margin-bottom: 10px; }
+        .class-info { display: flex; justify-content: space-between; align-items: center; background: #f0f0f0; padding: 15px; border-radius: 8px; margin-top: 10px; }
+        .tabs { display: flex; gap: 10px; margin-top: 20px; }
+        .tab-btn { padding: 10px 20px; border: none; background: #f0f0f0; cursor: pointer; border-radius: 5px; font-size: 16px; transition: all 0.3s; }
+        .tab-btn.active { background: #667eea; color: white; }
+        .tab-content { display: none; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .tab-content.active { display: block; }
+        .btn { padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px; transition: all 0.3s; font-size: 14px; }
+        .btn:hover { background: #5568d3; transform: translateY(-2px); }
+        .btn-danger { background: #e74c3c; }
+        .btn-danger:hover { background: #c0392b; }
+        .live-class { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        .video-container { background: #000; border-radius: 10px; height: 500px; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; flex-direction: column; text-align: center; padding: 20px; }
+        .students-sidebar { background: #f9f9f9; padding: 15px; border-radius: 10px; max-height: 500px; overflow-y: auto; }
+        .student-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: white; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .student-avatar { width: 40px; height: 40px; border-radius: 50%; background: #667eea; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; }
+        .student-info { flex: 1; margin-left: 10px; }
+        .speech-count { background: #667eea; color: white; padding: 5px 10px; border-radius: 20px; font-weight: bold; }
+        .session-info { background: #e8f4f8; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db; }
+        .subject-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 15px; }
+        .subject-card { background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%); color: #333; padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: all 0.3s; }
+        .subject-card:hover { transform: scale(1.05); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+        .subject-card h3 { font-size: 24px; margin-right: 10px; }
+        .badge { display: inline-block; padding: 5px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-left: 10px; }
+        .badge-active { background: #27ae60; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 Hệ thống AI Quản lý Lớp học</h1>
+            <div class="class-info">
+                <div><strong>🏫 Lớp áp dụng:</strong> <span style="color: #667eea; font-size: 20px; font-weight: bold;">10/1</span></div>
+                <div><strong>🔐 Tài khoản:</strong> Admin</div>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('liveclass')">🎥 Live Class</button>
+                <button class="tab-btn" onclick="switchTab('students')">👨‍🎓 Học sinh</button>
+                <button class="tab-btn" onclick="switchTab('stats')">📈 Thống kê</button>
+            </div>
+        </div>
+        
+        <!-- Live Class Tab -->
+        <div id="liveclass" class="tab-content active">
+            
+            <!-- KHU VỰC CHỌN MÔN HỌC (HIỂN THỊ BAN ĐẦU) -->
+            <div id="subjectSelection">
+                <h2>Chọn môn học để bắt đầu buổi học</h2>
+                <div id="subjectGrid" class="subject-grid">
+                    <!-- JavaScript sẽ đổ danh sách môn học vào đây -->
+                    <p>Đang tải danh sách môn học...</p>
+                </div>
+            </div>
+
+            <!-- KHU VỰC BUỔI HỌC (HIỂN THỊ KHI ĐANG DIỄN RA) -->
+            <div id="sessionView" style="display: none;">
+                <div class="session-info" id="sessionInfo">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h4>
+                            📚 Môn: <span id="currentSubject" style="font-weight: bold;">---</span>
+                            <span class="badge badge-active" id="sessionStatus">ĐANG DIỄN RA</span>
+                        </h4>
+                        <button class="btn btn-danger" id="stopBtn">⏹️ Kết thúc buổi học</button>
+                    </div>
+                </div>
+                
+                <div class="live-class">
+                    <div>
+                        <div class="video-container" id="videoFeed">
+    <!-- THAY THẾ NỘI DUNG CŨ BẰNG DÒNG NÀY -->
+    <img src="http://127.0.0.1:5001/video_feed" width="100%" height="100%" style="object-fit: contain;">
+</div>
+                        <div style="margin-top: 10px; text-align: center;">
+                            <p id="detectedStudent" style="font-size: 18px; font-weight: bold; color: #667eea;">
+                                Đang chờ nhận diện...
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="students-sidebar">
+                        <div id="studentsList">
+                            <h3>Đang tải danh sách học sinh...</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        
+        <!-- Students Tab -->
+        <div id="students" class="tab-content">
+            <h2>Quản lý Học sinh - Lớp 10/1</h2>
+            <!-- Nội dung quản lý học sinh ở đây -->
+        </div>
+        
+        <!-- Stats Tab -->
+        <div id="stats" class="tab-content">
+            <h2>📈 Thống kê & Phân tích - Lớp 10/1</h2>
+            <!-- Nội dung thống kê ở đây -->
+        </div>
+    </div>
+    
+    <!-- Nạp thư viện và file JS chính -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/shared.js') }}"></script>
+</body>
+</html>

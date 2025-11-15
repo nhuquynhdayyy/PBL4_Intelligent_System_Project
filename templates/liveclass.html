@@ -1,0 +1,92 @@
+{% extends "layout.html" %}
+{% block title %}Lớp học Trực tiếp{% endblock %}
+
+{# Thêm file CSS riêng cho trang Live Class vào block styles #}
+{% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/liveclass.css') }}">
+{% endblock %}
+
+{% block content %}
+    <!-- TIÊU ĐỀ TRANG -->
+    <div class="page-header">
+        <h2><i class="fas fa-broadcast-tower me-2"></i> Buổi học Trực tiếp</h2>
+        <div class="status-indicator" id="connection-status">
+            <span class="icon text-danger"><i class="fas fa-wifi"></i></span>
+            <span class="text">Đang kết nối...</span>
+        </div>
+    </div>
+    
+    <!-- NỘI DUNG CHÍNH CỦA DASHBOARD -->
+    <div class="live-dashboard">
+        
+        <!-- === CỘT BÊN TRÁI === -->
+        <div class="panel left-panel">
+            <div class="panel-header">
+                <h3><i class="fas fa-video"></i> Video Feed</h3>
+                <span class="session-status" id="session-status-badge">Chưa bắt đầu</span>
+            </div>
+            <div class="panel-body">
+                <div class="video-placeholder">
+                    <i class="fas fa-camera-slash"></i>
+                    <p>Camera đang chạy trên máy AI Processor.</p>
+                    <small>Giao diện này chỉ hiển thị kết quả và chờ xác nhận.</small>
+                </div>
+            </div>
+            <div class="panel-footer controls">
+                <button id="start-session-btn" class="btn"><i class="fas fa-play"></i> Bắt đầu buổi học</button>
+                <button id="end-session-btn" class="btn btn-warning" style="display: none;"><i class="fas fa-stop"></i> Kết thúc buổi học</button>
+                <button id="export-data-btn" class="btn btn-secondary" disabled><i class="fas fa-download"></i> Xuất dữ liệu</button>
+            </div>
+        </div>
+
+        <!-- === CỘT BÊN PHẢI === -->
+        <div class="panel right-panel">
+            <!-- Vùng chờ xác nhận -->
+            <div class="sub-panel">
+                <div class="panel-header">
+                    <h3><i class="fas fa-user-check"></i> Chờ xác nhận</h3>
+                </div>
+                <div class="panel-body" id="pending-confirmation-area">
+                    <p class="placeholder-text">Chưa có yêu cầu nào...</p>
+                </div>
+            </div>
+            
+            <!-- Thống kê -->
+            <div class="sub-panel">
+                <div class="panel-header">
+                    <h3><i class="fas fa-chart-bar"></i> Thống kê</h3>
+                    <div class="total-stats">
+                        <span>Tổng số:</span>
+                        <strong id="total-speeches-count">0</strong>
+                    </div>
+                </div>
+                <ul class="student-list" id="student-speech-list">
+                    <li class="placeholder-text">Bắt đầu buổi học để xem danh sách</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal để chọn môn học (sử dụng cấu trúc modal của bạn) -->
+    <div id="selectSubjectModal" class="modal">
+      <div class="modal-content">
+        <span class="modal-close" data-modal-id="selectSubjectModal">&times;</span>
+        <h2>Chọn môn học để bắt đầu</h2>
+        <div class="form-group">
+            <label for="subject-select-list">Môn học:</label>
+            <select id="subject-select-list"></select>
+        </div>
+        <div style="text-align: right; margin-top: 20px;">
+            <button type="button" class="btn btn-danger" data-modal-id="selectSubjectModal">Hủy</button>
+            <button type="button" class="btn" id="confirm-start-session">Bắt đầu</button>
+        </div>
+      </div>
+    </div>
+{% endblock %}
+
+
+{# Nạp các file JS riêng của trang Live Class #}
+{% block scripts %}
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/liveclass.js') }}"></script>
+{% endblock %}

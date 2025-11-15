@@ -1,0 +1,28 @@
+{% extends "layout.html" %}
+
+{% block title %}Quản lý Học sinh{% endblock %}
+
+{% block content %}
+    <h2>Quản lý Học sinh - Lớp 10/1</h2>
+
+    <!-- 
+        Nút "Thêm mới" với ID="addStudentBtn".
+        ID này rất quan trọng để file main.js có thể tìm thấy và gán sự kiện click chính xác.
+    -->
+    <button class="btn" id="addStudentBtn">
+        <i class="fa-solid fa-plus"></i> Thêm học sinh mới
+    </button>
+
+    <!-- 
+        Đây là vùng chứa danh sách các học sinh.
+        JavaScript sẽ tìm đến thẻ div có ID="studentList" này 
+        và đổ dữ liệu lấy từ API vào bên trong nó.
+    -->
+    <div class="student-list" id="studentList" style="margin-top: 20px;">
+        <p>Đang tải dữ liệu học sinh...</p>
+    </div>
+{% endblock %}
+{% block scripts %}
+    <!-- Nạp file JS dành riêng cho trang Học sinh -->
+    <script src="{{ url_for('static', filename='js/students.js') }}"></script>
+{% endblock %}

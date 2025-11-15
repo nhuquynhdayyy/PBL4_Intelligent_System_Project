@@ -1,0 +1,19 @@
+{% extends "layout.html" %}
+
+{% block title %}Tổng quan - Hệ thống AI{% endblock %}
+
+{% block content %}
+<h2>Tổng quan hệ thống - Lớp 10/1</h2>
+<div class="stats-grid" id="statsGrid">
+    <p>Đang tải dữ liệu...</p>
+</div>
+<h3 style="margin-top: 30px;">Hoạt động gần đây</h3>
+<div class="activity-feed" id="activityFeed">
+    <p>Chưa có hoạt động nào.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+    <!-- Nạp file JS dành riêng cho trang Học sinh -->
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
