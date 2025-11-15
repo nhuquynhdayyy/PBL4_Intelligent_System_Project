@@ -1,8 +1,8 @@
 # app.py
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 from flask_socketio import SocketIO, emit
 from database import db, Class, Student, Subject, Session, SpeechLog
-import os
+import os, threading
 from dotenv import load_dotenv
 from sqlalchemy import func, desc
 from datetime import datetime
@@ -15,6 +15,23 @@ db_user, db_password, db_host, db_name = os.getenv('DB_USER'), os.getenv('DB_PAS
 app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{db_user}:{db_password}@{db_host}/{db_name}'
 db.init_app(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+# --- KHỞI TẠO ỨNG DỤNG VÀ SOCKETIO ---
+load_dotenv()
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'your_super_secret_key_change_it_later!'
+db_user, db_password, db_host, db_name = os.getenv('DB_USER'), os.getenv('DB_PASSWORD'), os.getenv('DB_HOST'), os.getenv('DB_NAME')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{db_user}:{db_password}@{db_host}/{db_name}'
+db.init_app(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+
+# --- THÊM MỚI: BIẾN TOÀN CỤC ĐỂ LƯU TRỮ VIDEO STREAM ---
+# output_frame sẽ lưu trữ frame ảnh JPEG mới nhất nhận được từ AI server
+# lock là một khóa để đảm bảo việc đọc/ghi frame được an toàn, tránh xung đột
+output_frame = None
+lock = threading.Lock()
+
 
 # =============================================================
 # === CÁC ROUTE ĐỂ RENDER TRANG ===
@@ -37,6 +54,49 @@ def stats(): return render_template('stats.html')
 # =============================================================
 # === API ENDPOINTS ===
 # =============================================================
+
+# --- THÊM MỚI: ENDPOINT ĐỂ NHẬN VIDEO TỪ AI SERVER ---
+@app.route('/api/video_stream/push', methods=['POST'])
+def video_stream_push():
+    """
+    Đây là "Cổng nhận tin tức". AI Server sẽ liên tục gửi (POST)
+    dữ liệu ảnh JPEG thô (raw bytes) đến endpoint này.
+    """
+    global output_frame
+    # Dùng lock để đảm bảo việc gán giá trị mới là an toàn
+    with lock:
+        output_frame = request.data
+    return jsonify({'status': 'ok'})
+
+
+# --- THÊM MỚI: ENDPOINT ĐỂ TRÌNH DUYỆT XEM VIDEO STREAM ---
+def generate_video_stream():
+    """
+    Đây là một generator function. Nó sẽ liên tục đọc biến `output_frame`
+    và "yield" (đẩy ra) từng frame theo định dạng multipart.
+    """
+    while True:
+        # Dùng lock để đọc frame một cách an toàn
+        with lock:
+            # Nếu chưa có frame nào thì bỏ qua vòng lặp này
+            if output_frame is None:
+                continue
+            # Sao chép frame để có thể giải phóng lock nhanh chóng
+            frame_bytes = output_frame[:]
+        
+        # Gửi frame đi theo định dạng của MJPEG stream
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+
+@app.route('/video_feed')
+def video_feed():
+    """
+    Đây là "Kênh phát sóng". Trình duyệt sẽ kết nối tới đây.
+    Nó trả về một đối tượng Response, sử dụng generator ở trên để
+    liên tục stream dữ liệu.
+    """
+    return Response(generate_video_stream(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
 
 # --- API CRUD MÔN HỌC ---
 @app.route('/api/subjects', methods=['GET', 'POST'])
@@ -305,5 +365,5 @@ if __name__ == '__main__':
             db.session.add(new_class)
             db.session.commit()
             print("[INFO] Đã tạo lớp học mặc định.")
-            
+
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)

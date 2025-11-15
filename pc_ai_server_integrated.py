@@ -15,6 +15,7 @@ import requests # <-- Thư viện mới để gửi request
 SERVER_HOST = '0.0.0.0'
 SERVER_PORT = 8765
 BACKEND_API_URL = "http://127.0.0.1:5000/api/recognize" # <-- URL của backend
+VIDEO_PUSH_URL = "http://127.0.0.1:5000/api/video_stream/push" # <<< THÊM MỚI
 LOG_DEBOUNCE_SECONDS = 5 # Chờ 5s trước khi ghi nhận lại cùng 1 người
 
 # --- LOAD MODEL ---
@@ -117,13 +118,32 @@ async def ai_processing_handler(websocket):
                 color = (0, 255, 255) if tracks[key]['confirmed_stand'] else (0, 255, 0)
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
-            cv2.imshow("AI Processing Server (Integrated)", frame)
-            if cv2.waitKey(1) & 0xFF in (27, ord('q')): break
+            # =======================================================
+            # === THAY ĐỔI LỚN: GỬI VIDEO STREAM THAY VÌ HIỂN THỊ ===
+            # =======================================================
+            
+            # 1. Nén frame đã được vẽ vời (khung bao, tên...) thành JPEG
+            ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+            
+            if ret:
+                # 2. Gửi dữ liệu JPEG thô đến "Cổng nhận tin" của Web Server
+                try:
+                    requests.post(VIDEO_PUSH_URL, 
+                                  data=buffer.tobytes(), 
+                                  headers={'Content-Type': 'image/jpeg'}, 
+                                  timeout=0.5) # Timeout ngắn để không làm nghẽn luồng
+                except requests.exceptions.RequestException as e:
+                    # Bỏ qua lỗi nếu không kết nối được, tránh làm crash AI server
+                    pass 
+            
+            # 3. BỎ ĐI CÁC LỆNH HIỂN THỊ OPENCV
+            # cv2.imshow("AI Processing Server (Integrated)", frame)
+            # if cv2.waitKey(1) & 0xFF in (27, ord('q')): break
             
     except websockets.exceptions.ConnectionClosed:
         print(f"[INFO] Raspberry Pi đã ngắt kết nối.")
-    finally:
-        cv2.destroyAllWindows()
+    # finally:
+    #     cv2.destroyAllWindows()
 
 # --- Phần main giữ nguyên ---
 async def main():
