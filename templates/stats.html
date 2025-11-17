@@ -2,7 +2,6 @@
 {% block title %}Thống kê & Phân tích{% endblock %}
 
 {% block styles %}
-    {# Nạp file CSS dành riêng cho trang Thống kê #}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/stats.css') }}">
 {% endblock %}
 
@@ -12,7 +11,7 @@
     </div>
 
     <div class="stats-grid">
-        <!-- Phần 1: Top học sinh tích cực -->
+        <!-- Top học sinh tích cực -->
         <div class="stat-card" id="top-students-card">
             <div class="card-header">
                 <h3><i class="fas fa-trophy"></i> Top học sinh tích cực nhất</h3>
@@ -25,23 +24,28 @@
             </div>
         </div>
 
-        <!-- Phần 3: Xu hướng học sinh (Dùng AI) - Chuyển lên trên -->
+        <!-- Phân tích Xu hướng (AI) -->
         <div class="stat-card" id="ai-trends-card">
             <div class="card-header">
                 <h3><i class="fas fa-brain"></i> Phân tích Xu hướng</h3>
                  <small>AI-Powered Insights</small>
             </div>
             <div class="card-body">
-                <div id="studentTrends">
-                    <h4>📊 Phân tích khuynh hướng môn học</h4>
-                    <p id="aiAnalysisResult" class="placeholder-text">AI đang phân tích dữ liệu, vui lòng chờ...</p>
+                <!-- THÊM MỚI: Dropdown chọn học sinh -->
+                <div class="form-group mb-3">
+                    <label for="student-select-for-analysis"><strong>Chọn một học sinh để xem phân tích chi tiết:</strong></label>
+                    <select id="student-select-for-analysis" class="form-select mt-2">
+                        <option value="">-- Đang tải danh sách học sinh --</option>
+                    </select>
+                </div>
+                <div id="aiAnalysisResult">
+                    <p class="placeholder-text">Vui lòng chọn một học sinh để bắt đầu phân tích...</p>
                 </div>
             </div>
         </div>
     </div>
 
-
-    <!-- Phần 2: Phân tích theo môn học -->
+    <!-- Phân tích theo môn học -->
     <div class="stat-card full-width-card" id="subject-analysis-card">
         <div class="card-header">
              <h3><i class="fas fa-book-open"></i> Phân tích theo từng môn học</h3>
@@ -55,6 +59,5 @@
 {% endblock %}
 
 {% block scripts %}
-    {# Nạp file JS dành riêng cho trang Thống kê #}
     <script src="{{ url_for('static', filename='js/stats.js') }}"></script>
 {% endblock %}

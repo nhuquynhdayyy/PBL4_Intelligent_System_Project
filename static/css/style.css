@@ -652,3 +652,50 @@ table th {
 table tr:hover {
     background: var(--light-gray);
 }
+
+.modal-lg {
+    max-width: 900px; /* Tăng chiều rộng của modal */
+}
+
+.grade-management-grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr; /* Chia layout thành 2 cột */
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.grade-form-container, .grade-list-container {
+    padding: 15px;
+    border-radius: 8px;
+}
+
+.grade-form-container {
+    background-color: #f9f9f9;
+    border: 1px solid #eee;
+}
+
+.grade-list-container {
+     max-height: 400px;
+     overflow-y: auto;
+}
+
+.grade-list table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.grade-list th, .grade-list td {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+}
+
+.grade-list th {
+    background-color: #f2f2f2;
+}
+
+.form-buttons {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+}

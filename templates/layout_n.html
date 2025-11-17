@@ -14,7 +14,7 @@
         <div class="header">
             <h1><i class="fa-solid fa-graduation-cap"></i> Hệ thống AI Quản lý Lớp học</h1>
             <div class="class-info">
-                <span><i class="fa-solid fa-school"></i> Lớp áp dụng: <strong>10/1</strong></span>
+                <span><i class="fa-solid fa-school"></i> Lớp áp dụng: <strong>9/1</strong></span>
                 <span><i class="fa-solid fa-users"></i> Tổng số học sinh: <strong id="totalStudentsHeader">...</strong></span>
                 <span><i class="fa-solid fa-user-shield"></i> Tài khoản: <strong>Admin</strong></span>
             </div>
@@ -50,6 +50,18 @@
                         <label for="subjectIcon">Biểu tượng (emoji):</label>
                         <input type="text" id="subjectIcon" placeholder="📖">
                     </div>
+                    <!-- THÊM MỚI: Trường phân loại môn học -->
+                    <div class="form-group">
+                        <label for="subjectCategory">Phân loại môn học:</label>
+                        <select id="subjectCategory">
+                            <option value="">-- Chọn loại môn học --</option>
+                            <option value="Khoa học Tự nhiên">Khoa học Tự nhiên</option>
+                            <option value="Khoa học Xã hội">Khoa học Xã hội</option>
+                            <option value="Ngoại ngữ">Ngoại ngữ</option>
+                            <option value="Năng khiếu">Năng khiếu</option>
+                            <option value="Khác">Khác</option>
+                        </select>
+                    </div>
                     <button type="submit" class="btn">💾 Lưu môn học</button>
                     <button type="button" class="btn btn-danger" data-modal-id="subjectModal">Hủy</button>
                 </form>
@@ -66,6 +78,21 @@
                     <div class="form-group">
                         <label for="studentName">Họ tên:</label>
                         <input type="text" id="studentName" placeholder="Nguyễn Văn A" required>
+                    </div>
+                    <!-- THÊM MỚI: Trường ngày sinh -->
+                    <div class="form-group">
+                        <label for="studentDob">Ngày sinh:</label>
+                        <input type="date" id="studentDob">
+                    </div>
+                     <!-- THÊM MỚI: Trường giới tính -->
+                    <div class="form-group">
+                        <label for="studentGender">Giới tính:</label>
+                        <select id="studentGender">
+                            <option value="">-- Chọn giới tính --</option>
+                            <option value="Nam">Nam</option>
+                            <option value="Nữ">Nữ</option>
+                            <option value="Khác">Khác</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label for="studentCode">⚠️ Gắn với Face ID đã train trong máy:</label>
