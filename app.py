@@ -387,13 +387,13 @@ def untrained_faces_api():
 @app.route('/api/students/<int:student_id>/analysis')
 def analyze_student_api(student_id):
     try:
-        # 1. Tải model, scaler VÀ BẢN ĐỒ CỤM
+        # 1. Tải model, scaler và bản đồ cụm
         model = joblib.load('student_cluster_model.pkl')
         scaler = joblib.load('student_data_scaler.pkl')
         with open('cluster_map.json', 'r', encoding='utf-8') as f:
             cluster_map = json.load(f)
             
-        # 2. Lấy dữ liệu của học sinh (giữ nguyên)
+        # 2. Lấy dữ liệu của học sinh
         query = text(f"""
             SELECT
                 s.id AS student_id, s.full_name,
@@ -418,24 +418,24 @@ def analyze_student_api(student_id):
         if df.empty:
             return jsonify({'tendency': 'Chưa đủ dữ liệu', 'reason': 'Không tìm thấy thông tin học sinh.'})
         
-        # 3. Chuẩn bị dữ liệu (giữ nguyên)
+        # 3. Chuẩn bị dữ liệu
         df_cleaned = df.fillna(0)
         features = df_cleaned.drop(columns=['student_id', 'full_name'])
         features_scaled = scaler.transform(features)
         
-        # 4. Đưa ra dự đoán (giữ nguyên)
+        # 4. Đưa ra dự đoán
         prediction = model.predict(features_scaled)
         cluster_id = prediction[0]
         
-        # 5. SỬ DỤNG BẢN ĐỒ ĐỘNG ĐỂ TRA CỨU
-        # Chuyển cluster_id (số nguyên) thành chuỗi để tra cứu trong key của JSON
+        # 5. Tra cứu kết luận từ bản đồ
         tendency = cluster_map.get(str(cluster_id), "Chưa xác định")
         
-        # Lấy ra lý do (giữ nguyên, nhưng làm tròn cho đẹp hơn)
+        # 6. TẠO CHUỖI LÝ DO ĐẦY ĐỦ CẢ 4 NHÓM MÔN
         reason_data = df_cleaned.to_dict('records')[0]
         reason = (f"Điểm TB KHTN: {reason_data['avg_grade_natural_science']:.2f}, Phát biểu KHTN: {int(reason_data['speeches_natural_science'])}. "
                   f"Điểm TB KHXH: {reason_data['avg_grade_social_science']:.2f}, Phát biểu KHXH: {int(reason_data['speeches_social_science'])}. "
-                  f"Điểm TB NN: {reason_data['avg_grade_language']:.2f}, Phát biểu NN: {int(reason_data['speeches_language'])}.")
+                  f"Điểm TB NN: {reason_data['avg_grade_language']:.2f}, Phát biểu NN: {int(reason_data['speeches_language'])}. "
+                  f"Điểm TB NK: {reason_data['avg_grade_aptitude']:.2f}, Phát biểu NK: {int(reason_data['speeches_aptitude'])}.")
 
         return jsonify({'tendency': tendency, 'reason': reason})
 
