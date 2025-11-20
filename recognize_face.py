@@ -1,86 +1,54 @@
-# recognize_face.py
-# Nhận diện khuôn mặt đơn với Facenet
+# File: recognize_face.py
 from deepface import DeepFace
-import cv2, numpy as np, pickle, os
+import cv2
+import numpy as np
+import pickle
 from scipy.spatial.distance import cosine
 
-# --- 1️⃣ Load model tự động từ cache ---
-print("[INFO] Loading Facenet model từ DeepFace cache...")
-model = DeepFace.build_model("Facenet")
+# --- CẤU HÌNH ---
+MODEL_NAME = "Facenet512"
+DB_PATH = "face_db.pkl"
+THRESHOLD = 0.5 # Nới lỏng ngưỡng một chút (gốc là 0.4) để dễ nhận diện hơn
 
-# --- 2️⃣ Load cơ sở dữ liệu khuôn mặt ---
-with open("face_db.pkl", "rb") as f:
-    face_db = pickle.load(f)
+print("[INFO] Loading Facenet model...")
+model = DeepFace.build_model(MODEL_NAME)
 
-threshold = 0.4  # ngưỡng mặc định của Facenet
+try:
+    with open(DB_PATH, "rb") as f:
+        face_db = pickle.load(f)
+    print(f"[INFO] Đã tải {len(face_db)} ID từ database.")
+except:
+    face_db = {}
+    print("[WARN] Chưa có database khuôn mặt.")
 
-# --- 3️⃣ Hàm nhận diện khuôn mặt ---
 def recognize_face(frame):
+    """
+    Hàm nhận diện cũ: Dùng enforce_detection=False và so khớp Cosine.
+    Input: Ảnh đã được resize to (Zoom Face).
+    """
     try:
-        # Lấy vector đặc trưng (embedding) từ ảnh hiện tại
-        emb = DeepFace.represent(frame, model_name="Facenet", enforce_detection=False)[0]['embedding']
-    except:
-        return None, 0.0  # nếu không detect được mặt
+        # 1. Lấy embedding (enforce_detection=False là chìa khóa để không bị lỗi No Face)
+        objs = DeepFace.represent(frame, model_name=MODEL_NAME, enforce_detection=False)
+        emb = objs[0]['embedding']
+    except Exception as e:
+        # print(f"DeepFace Error: {e}")
+        return "Unknown", 0.0
 
-    best_match = None
-    best_conf = 0
+    best_match = "Unknown"
+    best_conf = 0.0
 
-    # So sánh embedding hiện tại với từng học sinh trong DB
+    # 2. So sánh với DB
     for student_id, emb_list in face_db.items():
         for ref_emb in emb_list:
             dist = cosine(emb, ref_emb)
-            conf = max(0, 1 - dist / threshold)  # chuyển khoảng cách thành độ tin cậy (0–1)
+            conf = max(0, 1 - dist / 0.4) # 0.4 là ngưỡng gốc của Facenet
+            
             if conf > best_conf:
                 best_conf = conf
                 best_match = student_id
 
-    # Nếu độ tin cậy thấp, coi là "unknown"
-    if best_conf < 0.5:
-        best_match = "unknown"
+    # 3. Lọc ngưỡng tin cậy
+    if best_conf < THRESHOLD:
+        return "Unknown", round(best_conf, 2)
 
     return best_match, round(best_conf, 2)
-
-if __name__ == "__main__":
-    # --- 4️⃣ Nhận diện real-time ---
-    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-
-    if not cap.isOpened():
-        print("❌ Không thể mở camera.")
-        exit()
-
-    print("[INFO] Bắt đầu nhận diện... (Nhấn ESC để thoát)")
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("⚠️ Không đọc được frame từ camera.")
-            break
-
-        frame_small = cv2.resize(frame, (480, 360))
-
-        # --- Nhận diện khuôn mặt ---
-        student_id, conf = recognize_face(frame_small)
-
-        # --- Hiển thị kết quả trên màn hình ---
-        label = f"{student_id} ({conf*100:.0f}%)"
-        color = (0, 255, 0) if student_id != "unknown" else (0, 0, 255)
-        cv2.putText(frame, label, (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-
-        cv2.imshow("Face Recognition", frame)
-
-        # --- ✅ In ra terminal mỗi lần có nhận diện ---
-        if student_id != "unknown":
-            print({
-                "student_id": student_id,
-                "confidence": conf
-            })
-
-        # --- Thoát bằng ESC ---
-        if cv2.waitKey(1) & 0xFF == 27:
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
-

@@ -1,70 +1,81 @@
-# from deepface import DeepFace
-# import os, pickle
-
-# dataset_path = "datasets/faces"
-# face_db = {}
-
-# print("[INFO] Bắt đầu trích xuất đặc trưng khuôn mặt...")
-
-# for student_dir in os.listdir(dataset_path):
-#     student_path = os.path.join(dataset_path, student_dir)
-#     if not os.path.isdir(student_path):
-#         continue
-#     print(f"--> {student_dir}")
-    
-#     embeddings = []
-#     for img_name in os.listdir(student_path):
-#         img_path = os.path.join(student_path, img_name)
-#         try:
-#             emb = DeepFace.represent(img_path=img_path, model_name="Facenet", enforce_detection=False)
-#             embeddings.append(emb[0]["embedding"])
-#         except Exception as e:
-#             print(f"[Lỗi] {img_name}: {e}")
-#             continue
-    
-#     if embeddings:
-#         face_db[student_dir] = embeddings
-
-# # Lưu database vào file pkl
-# with open("face_db.pkl", "wb") as f:
-#     pickle.dump(face_db, f)
-
-# print(f"[DONE] Đã tạo face_db.pkl với {len(face_db)} học sinh.")
-
-# build_face_db.py
-# Tạo cơ sở dữ liệu khuôn mặt từ thư mục ảnh học sinh
-# Kết quả lưu vào file face_db.pkl
-# Mỗi entry trong DB có dạng: { "student_id": [embedding1, embedding2, ...], ... }
-# Embedding là vector đặc trưng khuôn mặt trích xuất bằng Facenet
-# Embedding dùng để so khớp khi nhận diện khuôn mặt
-# Sử dụng DeepFace để trích xuất embedding
+# File: build_face_db.py
+import os
+import pickle
 from deepface import DeepFace
-import os, pickle
 
-dataset_path = "datasets/faces"
-face_db = {}
+# --- CẤU HÌNH QUAN TRỌNG ---
+DATASET_PATH = "datasets/faces"   # Thư mục chứa ảnh
+OUTPUT_FILE = "face_db.pkl"       # Tên file kết quả
+MODEL_NAME = "ArcFace"            # Model nhận diện tốt nhất hiện nay (thay vì Facenet)
+DETECTOR_BACKEND = "opencv"       # Backend phát hiện khuôn mặt
 
-print("[INFO] Trích xuất đặc trưng khuôn mặt học sinh...")
-
-for student in os.listdir(dataset_path):
-    student_path = os.path.join(dataset_path, student)
-    if not os.path.isdir(student_path):
-        continue
+def build_database():
+    face_db = {}
     
-    embeddings = []
-    for img_file in os.listdir(student_path):
-        img_path = os.path.join(student_path, img_file)
-        try:
-            emb = DeepFace.represent(img_path=img_path, model_name="Facenet", enforce_detection=False)
-            embeddings.append(emb[0]["embedding"])
-        except Exception as e:
-            print(f"[Lỗi] {img_file}: {e}")
+    # Kiểm tra thư mục tồn tại
+    if not os.path.exists(DATASET_PATH):
+        print(f"[LỖI] Không tìm thấy thư mục: {DATASET_PATH}")
+        print("Hãy đảm bảo bạn đang đứng đúng thư mục gốc của dự án.")
+        return
+
+    print(f"[INFO] Bắt đầu xử lý dữ liệu từ: {DATASET_PATH}")
+    print(f"[INFO] Sử dụng Model: {MODEL_NAME}")
+
+    # Lấy danh sách các thư mục con (Tên sinh viên)
+    student_folders = [f for f in os.listdir(DATASET_PATH) if os.path.isdir(os.path.join(DATASET_PATH, f))]
+    total_students = len(student_folders)
     
-    if embeddings:
-        face_db[student] = embeddings
+    print(f"--> Tìm thấy {total_students} thư mục sinh viên.")
 
-with open("face_db.pkl", "wb") as f:
-    pickle.dump(face_db, f)
+    for idx, student_id in enumerate(student_folders):
+        student_path = os.path.join(DATASET_PATH, student_id)
+        print(f"[{idx+1}/{total_students}] Đang xử lý: {student_id}...")
+        
+        embeddings = []
+        
+        # Duyệt qua từng file trong thư mục của sinh viên đó
+        for img_name in os.listdir(student_path):
+            img_path = os.path.join(student_path, img_name)
+            
+            # Chỉ nhận file ảnh
+            if not img_name.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp')):
+                continue
+            
+            try:
+                # --- ĐIỂM QUAN TRỌNG NHẤT ---
+                # enforce_detection=True: Bắt buộc ảnh phải có mặt rõ ràng mới học.
+                # Nếu ảnh mờ, tối, hoặc chụp cái lưng -> DeepFace sẽ báo lỗi -> Ta bỏ qua ảnh đó.
+                results = DeepFace.represent(
+                    img_path=img_path,
+                    model_name=MODEL_NAME,
+                    enforce_detection=True, 
+                    detector_backend=DETECTOR_BACKEND
+                )
+                
+                # Lưu vector đặc trưng (embedding)
+                if results:
+                    embeddings.append(results[0]["embedding"])
+                    
+            except ValueError:
+                print(f"    [Bỏ qua] {img_name}: Không tìm thấy khuôn mặt.")
+            except Exception as e:
+                print(f"    [Lỗi] {img_name}: {e}")
 
-print(f"[DONE] Đã lưu face_db.pkl với {len(face_db)} học sinh.")
+        # Chỉ lưu vào DB nếu học được ít nhất 1 ảnh
+        if embeddings:
+            face_db[student_id] = embeddings
+            print(f"    -> [OK] Đã học {len(embeddings)} vector khuôn mặt.")
+        else:
+            print(f"    -> [CẢNH BÁO] Không học được ảnh nào từ {student_id}!")
 
+    # Lưu kết quả ra file .pkl
+    with open(OUTPUT_FILE, "wb") as f:
+        pickle.dump(face_db, f)
+    
+    print("\n" + "="*40)
+    print(f"[HOÀN TẤT] Đã lưu cơ sở dữ liệu vào file: {OUTPUT_FILE}")
+    print(f"Tổng số người trong DB: {len(face_db)}")
+    print("="*40)
+
+if __name__ == "__main__":
+    build_database()

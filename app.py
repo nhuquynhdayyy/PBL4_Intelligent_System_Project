@@ -1,90 +1,88 @@
-# app.py
-from flask import Flask, render_template, request, jsonify, Response
+# File: app.py
+from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit
 from flask_migrate import Migrate
 from database import db, Class, Student, Subject, Session, SpeechLog, Grade
 import os
-import threading
 from dotenv import load_dotenv
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, text
 from datetime import datetime
 import pandas as pd
 import joblib
-from sqlalchemy import text
 import json
 
 # =============================================================
-# === 1. KHỞI TẠO ỨNG DỤNG VÀ CẤU HÌNH ===
+# === 1. CẤU HÌNH ===
 # =============================================================
 load_dotenv()
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a_default_secret_key')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'secret')
 
-# Cấu hình Database
-db_user = os.getenv('DB_USER')
-db_password = os.getenv('DB_PASSWORD')
-db_host = os.getenv('DB_HOST')
-db_name = os.getenv('DB_NAME')
+# Cấu hình DB
+db_user = os.getenv('DB_USER', 'root')
+db_password = os.getenv('DB_PASSWORD', '')
+db_host = os.getenv('DB_HOST', 'localhost')
+db_name = os.getenv('DB_NAME', 'pbl4')
 app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{db_user}:{db_password}@{db_host}/{db_name}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# =============================================================
-# === 2. KHỞI TẠO CÁC EXTENSIONS (THƯ VIỆN) ===
-# =============================================================
 db.init_app(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 migrate = Migrate(app, db)
 
-
 # =============================================================
-# === 3. KHAI BÁO BIẾN TOÀN CỤC (NẾU CẦN) ===
-# =============================================================
-output_frame = None
-lock = threading.Lock()
-
-
-# =============================================================
-# === 4. CÁC ROUTE ĐỂ RENDER TRANG GIAO DIỆN (VIEWS) ===
+# === 2. ROUTE GIAO DIỆN (VIEW) - PHẦN BẠN BỊ THIẾU ===
 # =============================================================
 @app.route('/')
-def dashboard(): return render_template('dashboard.html')
+def dashboard(): 
+    return render_template('dashboard.html')
 
 @app.route('/subjects')
-def subjects(): return render_template('subjects.html')
+def subjects(): 
+    # Đây là hàm mà layout.html đang tìm kiếm (url_for('subjects'))
+    return render_template('subjects.html')
 
 @app.route('/students')
-def students(): return render_template('students.html')
-
-@app.route('/live-class')
-def liveclass(): return render_template('liveclass.html') 
+def students(): 
+    return render_template('students.html')
 
 @app.route('/stats')
-def stats(): return render_template('stats.html') 
+def stats(): 
+    return render_template('stats.html') 
+
+@app.route('/live-class')
+def liveclass(): 
+    return render_template('liveclass.html')
 
 # =============================================================
-# === 5. CÁC API ENDPOINTS ===
+# === 3. API ENDPOINTS (LOGIC) ===
 # =============================================================
 
-# --- VIDEO STREAM ---
-@app.route('/api/video_stream/push', methods=['POST'])
-def video_stream_push():
-    global output_frame
-    with lock:
-        output_frame = request.data
-    return jsonify({'status': 'ok'})
+# --- API NHẬN DIỆN TỪ AI SERVER (Quan trọng) ---
+@app.route('/api/recognize', methods=['POST'])
+def recognize_api():
+    data = request.get_json()
+    student_code = data.get('student_code')
+    
+    # Tìm session đang diễn ra
+    current_session = Session.query.filter_by(status='ongoing').first()
+    if not current_session:
+        return jsonify({"status": "error", "message": "Chưa bắt đầu buổi học"}), 400
+    
+    student = Student.query.filter_by(student_code=student_code).first()
+    if not student:
+        return jsonify({"status": "error", "message": "Không tìm thấy HS"}), 404
 
-def generate_video_stream():
-    while True:
-        with lock:
-            if output_frame is None:
-                continue
-            frame_bytes = output_frame[:]
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-
-@app.route('/video_feed')
-def video_feed():
-    return Response(generate_video_stream(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    print(f"[AI DETECTED] {student.full_name} - Chờ giáo viên xác nhận")
+    
+    # Gửi SocketIO tới trình duyệt để hiện Popup
+    socketio.emit('pending_recognition', {
+        'student_code': student.student_code,
+        'full_name': student.full_name,
+        'student_id': student.id
+    }, namespace='/live')
+    
+    return jsonify({"status": "pending"})
 
 # --- CRUD MÔN HỌC ---
 @app.route('/api/subjects', methods=['GET', 'POST'])
@@ -117,7 +115,7 @@ def single_subject_api(subject_id):
         return jsonify({'status': 'success', 'message': f"Đã cập nhật môn học '{subject.name}'."})
     elif request.method == 'DELETE':
         Grade.query.filter_by(subject_id=subject.id).delete()
-        Session.query.filter_by(subject_id=subject.id).delete() # Cần xóa session trước
+        Session.query.filter_by(subject_id=subject.id).delete()
         db.session.delete(subject)
         db.session.commit()
         return jsonify({'status': 'success', 'message': f"Đã xóa môn học '{subject.name}'."})
@@ -162,7 +160,7 @@ def single_student_api(student_id):
         return jsonify({'status': 'success', 'message': f"Đã xóa học sinh '{student.full_name}'."})
     return jsonify({'id': student.id, 'full_name': student.full_name, 'student_code': student.student_code, 'date_of_birth': student.date_of_birth.isoformat() if student.date_of_birth else None, 'gender': student.gender})
 
-# --- CRUD ĐIỂM SỐ (GRADES) ---
+# --- CRUD ĐIỂM SỐ ---
 @app.route('/api/students/<int:student_id>/grades', methods=['GET'])
 def get_grades_for_student(student_id):
     try:
@@ -172,7 +170,6 @@ def get_grades_for_student(student_id):
         result = [{'id': g.id, 'score': g.score, 'grade_type': g.grade_type, 'term': g.term, 'exam_date': g.exam_date.isoformat() if g.exam_date else None, 'subject_id': g.subject_id, 'subject_name': g.subject.name} for g in grades_query]
         return jsonify(result)
     except Exception as e:
-        print(f"!!! LỖI trong get_grades_for_student: {e}")
         return jsonify({'status': 'error', 'message': 'Lỗi server khi tải điểm.'}), 500
 
 @app.route('/api/grades', methods=['POST'])
@@ -199,7 +196,6 @@ def update_or_delete_grade(grade_id):
             grade.subject_id = data.get('subject_id', grade.subject_id)
             grade.score = float(data.get('score', grade.score))
             grade.grade_type = data.get('grade_type', grade.grade_type)
-            # ... (các trường khác)
             db.session.commit()
             return jsonify({'status': 'success', 'message': 'Cập nhật điểm thành công.'})
         except Exception as e:
@@ -210,18 +206,7 @@ def update_or_delete_grade(grade_id):
         db.session.commit()
         return jsonify({'status': 'success', 'message': 'Đã xóa điểm.'})
 
-# --- CÁC API KHÁC ---
-# @app.route('/api/untrained_faces')
-# def untrained_faces_api():
-#     try:
-#         trained_folders = [d for d in os.listdir("datasets/faces") if os.path.isdir(os.path.join("datasets/faces", d))]
-#         used_codes = [s.student_code for s in Student.query.all()]
-#         return jsonify([code for code in trained_folders if code not in used_codes])
-#     except FileNotFoundError:
-#         return jsonify([])
-
-
-# --- API CHO LIVE CLASS (ĐÃ ĐƯỢC BAO GỒM LẠI ĐẦY ĐỦ) ---
+# --- SESSION (BUỔI HỌC) ---
 @app.route('/api/sessions/start', methods=['POST'])
 def start_session_api():
     data = request.get_json()
@@ -260,58 +245,15 @@ def get_current_session_api():
     else:
         return jsonify({"status": "not_found"})
 
-# --- API NHẬN DIỆN TỪ AI PROCESSOR ---
-# Sửa hàm recognize_api
-@app.route('/api/recognize', methods=['POST'])
-def recognize_api():
-    data = request.get_json()
-    student_code = data.get('student_code')
-    current_session = Session.query.filter_by(status='ongoing').first()
-    if not current_session:
-        return jsonify({"status": "error", "message": "Không có buổi học nào đang diễn ra."}), 400
-    
-    student = Student.query.filter_by(student_code=student_code).first()
-    if not student:
-        return jsonify({"status": "error", "message": f"Không tìm thấy học sinh {student_code}"}), 404
+@app.route('/api/subjects/<int:subject_id>/sessions')
+def session_history_api(subject_id):
+    return jsonify([])
 
-    # THAY ĐỔI LỚN: KHÔNG GHI VÀO DB NỮA
-    # Thay vào đó, phát sự kiện "chờ xác nhận"
-    print(f"[PENDING] Gửi yêu cầu xác nhận cho: {student.full_name}")
-    socketio.emit('pending_recognition', {
-        'student_code': student.student_code,
-        'full_name': student.full_name,
-        'student_id': student.id # Gửi cả student_id để xử lý dễ hơn
-    }, namespace='/live')
-    
-    return jsonify({"status": "pending"}) # Phản hồi lại cho AI processor rằng đã nhận
-
-# =============================================================
-# === 6. SOCKET.IO EVENTS ===
-# =============================================================
-@socketio.on('connect', namespace='/live')
-def handle_live_connect(): print('Client đã kết nối tới Live Class.')
-
-@socketio.on('disconnect', namespace='/live')
-def handle_live_disconnect(): print('Client đã ngắt kết nối khỏi Live Class.')
-
-@socketio.on('confirm_recognition', namespace='/live')
-def handle_confirm_recognition(data):
-    if data.get('action') == 'accept':
-        current_session = Session.query.filter_by(status='ongoing').first()
-        student = Student.query.get(data.get('student_id'))
-        if current_session and student:
-            new_log = SpeechLog(student_id=student.id, session_id=current_session.id)
-            db.session.add(new_log)
-            db.session.commit()
-            print(f"[CONFIRMED] Ghi nhận: {student.full_name}")
-            socketio.emit('speech_update', {'student_code': student.student_code, 'full_name': student.full_name, 'timestamp': datetime.utcnow().strftime('%H:%M:%S')}, namespace='/live')
-
-# --- CÁC API KHÁC ---
+# --- CÁC API THỐNG KÊ KHÁC ---
 @app.route('/api/dashboard_stats')
 def dashboard_stats_api():
     try:
         class_id = 1
-        
         subject_count = Subject.query.filter_by(class_id=class_id).count()
         student_count = Student.query.filter_by(class_id=class_id).count()
         session_count = Session.query.join(Subject).filter(Subject.class_id == class_id).count()
@@ -329,22 +271,14 @@ def dashboard_stats_api():
             })
 
         return jsonify({
-            'stats': {
-                'subjects': subject_count,
-                'students': student_count,
-                'sessions': session_count,
-                'speeches': speech_count
-            },
+            'stats': {'subjects': subject_count, 'students': student_count, 'sessions': session_count, 'speeches': speech_count},
             'recent_activity': recent_activity
         })
     except Exception as e:
-        print(f"Lỗi trong /api/dashboard_stats: {e}")
         return jsonify({"message": "Lỗi server khi lấy dữ liệu dashboard"}), 500
-
 
 @app.route('/api/statistics')
 def statistics_api():
-    # ... code cho API này đã được sửa lỗi ...
     try:
         class_id = 1
         top_students_query = db.session.query(Student.full_name, func.count(SpeechLog.id).label('total_speeches')).join(SpeechLog, Student.id == SpeechLog.student_id).filter(Student.class_id == class_id).group_by(Student.id).order_by(desc('total_speeches')).limit(5).all()
@@ -364,13 +298,7 @@ def statistics_api():
                 student_trends_data[student.full_name][subject.name] = count
         return jsonify({'top_students': top_students, 'subject_analysis': subject_analysis, 'student_trends_raw_data': student_trends_data})
     except Exception as e:
-        print(f"Lỗi nghiêm trọng trong /api/statistics: {e}")
         return jsonify({"message": f"Lỗi server nội bộ: {e}"}), 500
-
-@app.route('/api/subjects/<int:subject_id>/sessions')
-def session_history_api(subject_id):
-    # ... code cho API này ...
-    return jsonify([])
 
 @app.route('/api/untrained_faces')
 def untrained_faces_api():
@@ -383,20 +311,17 @@ def untrained_faces_api():
     except FileNotFoundError:
         return jsonify([])
 
-# --- API PHÂN TÍCH HỌC SINH BẰNG AI ---
+# --- API PHÂN TÍCH AI ---
 @app.route('/api/students/<int:student_id>/analysis')
 def analyze_student_api(student_id):
     try:
-        # 1. Tải model, scaler và bản đồ cụm
         model = joblib.load('student_cluster_model.pkl')
         scaler = joblib.load('student_data_scaler.pkl')
         with open('cluster_map.json', 'r', encoding='utf-8') as f:
             cluster_map = json.load(f)
             
-        # 2. Lấy dữ liệu của học sinh
         query = text(f"""
-            SELECT
-                s.id AS student_id, s.full_name,
+            SELECT s.id AS student_id, s.full_name,
                 COUNT(DISTINCT CASE WHEN sub.category = 'Khoa học Tự nhiên' THEN sl.id END) AS speeches_natural_science,
                 COUNT(DISTINCT CASE WHEN sub.category = 'Khoa học Xã hội' THEN sl.id END) AS speeches_social_science,
                 COUNT(DISTINCT CASE WHEN sub.category = 'Ngoại ngữ' THEN sl.id END) AS speeches_language,
@@ -418,19 +343,14 @@ def analyze_student_api(student_id):
         if df.empty:
             return jsonify({'tendency': 'Chưa đủ dữ liệu', 'reason': 'Không tìm thấy thông tin học sinh.'})
         
-        # 3. Chuẩn bị dữ liệu
         df_cleaned = df.fillna(0)
         features = df_cleaned.drop(columns=['student_id', 'full_name'])
         features_scaled = scaler.transform(features)
         
-        # 4. Đưa ra dự đoán
         prediction = model.predict(features_scaled)
         cluster_id = prediction[0]
-        
-        # 5. Tra cứu kết luận từ bản đồ
         tendency = cluster_map.get(str(cluster_id), "Chưa xác định")
         
-        # 6. TẠO CHUỖI LÝ DO ĐẦY ĐỦ CẢ 4 NHÓM MÔN
         reason_data = df_cleaned.to_dict('records')[0]
         reason = (f"Điểm TB KHTN: {reason_data['avg_grade_natural_science']:.2f}, Phát biểu KHTN: {int(reason_data['speeches_natural_science'])}. "
                   f"Điểm TB KHXH: {reason_data['avg_grade_social_science']:.2f}, Phát biểu KHXH: {int(reason_data['speeches_social_science'])}. "
@@ -439,29 +359,32 @@ def analyze_student_api(student_id):
 
         return jsonify({'tendency': tendency, 'reason': reason})
 
-    except FileNotFoundError:
-        return jsonify({'tendency': 'Lỗi', 'reason': 'Mô hình AI hoặc bản đồ cụm chưa được tạo. Vui lòng chạy file ai_trainer.py.'}), 500
     except Exception as e:
-        print(f"Lỗi trong API phân tích: {e}")
         return jsonify({'tendency': 'Lỗi', 'reason': str(e)}), 500
 
 # =============================================================
-# === SOCKET.IO EVENTS CHO LIVE CLASS ===
+# === 4. SOCKET.IO EVENTS ===
 # =============================================================
 @socketio.on('connect', namespace='/live')
-def handle_live_connect():
-    print('Client đã kết nối tới Live Class.')
+def handle_live_connect(): print('Client đã kết nối tới Live Class.')
 
 @socketio.on('disconnect', namespace='/live')
-def handle_live_disconnect():
-    print('Client đã ngắt kết nối khỏi Live Class.')
+def handle_live_disconnect(): print('Client đã ngắt kết nối khỏi Live Class.')
 
-# =============================================================
-# === 7. KHỐI CHẠY ỨNG DỤNG ===
-# =============================================================
+@socketio.on('confirm_recognition', namespace='/live')
+def handle_confirm_recognition(data):
+    if data.get('action') == 'accept':
+        current_session = Session.query.filter_by(status='ongoing').first()
+        student = Student.query.get(data.get('student_id'))
+        if current_session and student:
+            new_log = SpeechLog(student_id=student.id, session_id=current_session.id)
+            db.session.add(new_log)
+            db.session.commit()
+            print(f"[CONFIRMED] Ghi nhận: {student.full_name}")
+            socketio.emit('speech_update', {'student_code': student.student_code, 'full_name': student.full_name, 'timestamp': datetime.utcnow().strftime('%H:%M:%S')}, namespace='/live')
+
 if __name__ == '__main__':
     with app.app_context():
-        # Lệnh này dùng để tạo lớp học mặc định nếu chưa có
         if not db.session.get(Class, 1):
             print("[INFO] Tạo lớp học mặc định (ID=1)...")
             db.session.add(Class(id=1, name="9/1", academic_year="2025-2026"))

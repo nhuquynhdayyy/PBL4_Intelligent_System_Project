@@ -5,7 +5,7 @@ import cv2
 import time
 from picamera2 import Picamera2
 
-SERVER_IP = "10.131.231.201"
+SERVER_IP = "192.168.137.1"
 SERVER_URI = f"ws://{SERVER_IP}:8765"
 
 async def video_streamer():
