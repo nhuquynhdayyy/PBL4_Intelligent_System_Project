@@ -1,5 +1,4 @@
 # File: pc_ai_server_integrated.py
-# PHIÊN BẢN LAI GHÉP: STREAM TÁCH LUỒNG + POSE + OLD ZOOM FACE RECOGNITION
 
 import asyncio
 import websockets
@@ -11,7 +10,7 @@ import threading
 from flask import Flask, Response
 from ultralytics import YOLO
 from collections import deque, Counter
-from recognize_face import recognize_face # Gọi hàm từ file cũ
+from recognize_face import recognize_face 
 
 # --- CẤU HÌNH ---
 AI_SERVER_HOST = '0.0.0.0'
@@ -25,7 +24,7 @@ global_ai_results = []
 lock = threading.Lock()
 tracks_data = {}
 
-# --- FLASK STREAMING (GIỮ NGUYÊN ĐỂ KHÔNG LAG) ---
+# --- FLASK STREAMING ---
 app = Flask(__name__)
 
 @app.route('/video_feed')
@@ -75,7 +74,7 @@ def ai_worker_loop():
         scale_x = w_orig / ai_w
         scale_y = h_orig / ai_h
 
-        # 1. Chạy Pose (Giữ nguyên logic Sit/Stand xịn)
+        # 1. Chạy Pose 
         results = pose_model.track(ai_frame, persist=True, conf=0.5, verbose=False)
         temp_results = [] 
 
@@ -111,13 +110,12 @@ def ai_worker_loop():
                     name_disp = tracks_data[track_id]['identified_name'] if tracks_data[track_id]['identified_name'] else f"STAND {track_id}"
                     label = name_disp
                     
-                    # === 2. NHẬN DIỆN KHUÔN MẶT (LOGIC CŨ: ZOOM FACE) ===
+                    # === 2. NHẬN DIỆN KHUÔN MẶT (ZOOM FACE) ===
                     # Chỉ nhận diện nếu chưa biết tên và đã lâu chưa thử
                     if tracks_data[track_id]['identified_name'] is None:
                         if time.time() - tracks_data[track_id]['last_api_sent'] > 1.0:
                             
-                            # --- CÔNG THỨC CROP CŨ (Theo tỷ lệ phần trăm) ---
-                            # Code cũ: fy1 = y1 + int(0.05 * h)...
+                            # --- CÔNG THỨC CROP (Theo tỷ lệ phần trăm) ---
                             h_box = y2 - y1
                             w_box = x2 - x1
                             
@@ -133,11 +131,11 @@ def ai_worker_loop():
                             face_crop = frame_to_process[fy1:fy2, fx1:fx2]
                             
                             if face_crop.size > 0:
-                                # --- CỐT LÕI CỦA CODE CŨ: ZOOM LÊN 480x480 ---
+                                # --- ZOOM LÊN 480x480 ---
                                 # Việc phóng to này giúp DeepFace nhìn rõ hơn trên ảnh mờ
                                 zoom_face = cv2.resize(face_crop, (480, 480))
                                 
-                                # Gọi hàm nhận diện cũ
+                                # Gọi hàm nhận diện
                                 name, conf = recognize_face(zoom_face)
                                 print(f"[DEBUG] ID:{track_id} | Name:{name} | Conf:{conf}")
 

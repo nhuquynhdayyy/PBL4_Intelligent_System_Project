@@ -75,7 +75,7 @@ class SpeechLog(db.Model):
     student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
     session_id = db.Column(db.Integer, db.ForeignKey('sessions.id'), nullable=False)
 
-# --- MỚI: Bảng lưu điểm số của học sinh ---
+# --- Bảng lưu điểm số của học sinh ---
 class Grade(db.Model):
     """Bảng lưu điểm số của học sinh."""
     __tablename__ = 'grades'

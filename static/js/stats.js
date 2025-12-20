@@ -5,8 +5,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const aiAnalysisResultContainer = document.getElementById('aiAnalysisResult');
     const studentSelectDropdown = document.getElementById('student-select-for-analysis');
 
-    // ... (Hàm renderTopStudents và renderSubjectAnalysis giữ nguyên)
-
     function renderTopStudents(students) {
         if (!students || students.length === 0) {
             topStudentsContainer.innerHTML = '<p class="placeholder-text">Chưa có dữ liệu.</p>'; return;

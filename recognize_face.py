@@ -8,7 +8,7 @@ from scipy.spatial.distance import cosine
 # --- CẤU HÌNH ---
 MODEL_NAME = "Facenet512"
 DB_PATH = "face_db.pkl"
-THRESHOLD = 0.5 # Nới lỏng ngưỡng một chút (gốc là 0.4) để dễ nhận diện hơn
+THRESHOLD = 0.5 # Ngưỡng tin cậy để nhận diện
 
 print("[INFO] Loading Facenet model...")
 model = DeepFace.build_model(MODEL_NAME)
@@ -23,7 +23,7 @@ except:
 
 def recognize_face(frame):
     """
-    Hàm nhận diện cũ: Dùng enforce_detection=False và so khớp Cosine.
+    Hàm nhận diện: Dùng enforce_detection=False và so khớp Cosine.
     Input: Ảnh đã được resize to (Zoom Face).
     """
     try:

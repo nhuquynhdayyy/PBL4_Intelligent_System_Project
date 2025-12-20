@@ -18,8 +18,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const sessionStatusEl = document.getElementById('session-status-badge');
     const connectionStatusEl = document.getElementById('connection-status');
 
-    // Giả sử bạn có hàm này trong shared.js
-    // Nếu không, bạn phải tự định nghĩa lại logic đóng/mở modal
     const openModal = window.openModal;
     const closeModal = window.closeModal;
 

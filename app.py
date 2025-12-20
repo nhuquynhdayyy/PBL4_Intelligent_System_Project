@@ -10,6 +10,8 @@ from datetime import datetime
 import pandas as pd
 import joblib
 import json
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 # =============================================================
 # === 1. CẤU HÌNH ===
@@ -31,7 +33,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 migrate = Migrate(app, db)
 
 # =============================================================
-# === 2. ROUTE GIAO DIỆN (VIEW) - PHẦN BẠN BỊ THIẾU ===
+# === 2. ROUTE GIAO DIỆN (VIEW) ===
 # =============================================================
 @app.route('/')
 def dashboard(): 
@@ -39,7 +41,6 @@ def dashboard():
 
 @app.route('/subjects')
 def subjects(): 
-    # Đây là hàm mà layout.html đang tìm kiếm (url_for('subjects'))
     return render_template('subjects.html')
 
 @app.route('/students')
@@ -58,7 +59,7 @@ def liveclass():
 # === 3. API ENDPOINTS (LOGIC) ===
 # =============================================================
 
-# --- API NHẬN DIỆN TỪ AI SERVER (Quan trọng) ---
+# --- API NHẬN DIỆN TỪ AI SERVER ---
 @app.route('/api/recognize', methods=['POST'])
 def recognize_api():
     data = request.get_json()
@@ -311,6 +312,34 @@ def untrained_faces_api():
     except FileNotFoundError:
         return jsonify([])
 
+@app.route('/api/ai/train', methods=['POST'])
+def train_student_analysis_model():
+    try:
+        # 1. Lấy dữ liệu từ DB
+        query = text("""
+            SELECT s.id, 
+                COALESCE(COUNT(DISTINCT sl.id), 0) as speeches,
+                COALESCE(AVG(g.score), 0) as avg_score
+            FROM students s
+            LEFT JOIN speech_logs sl ON s.id = sl.student_id
+            LEFT JOIN grades g ON s.id = g.student_id
+            GROUP BY s.id
+        """)
+        df = pd.read_sql(query, db.engine)
+        
+        if len(df) < 3: return jsonify({'status': 'error', 'message': 'Không đủ dữ liệu'}), 400
+
+        # 2. Train K-Means đơn giản
+        X = df[['speeches', 'avg_score']]
+        kmeans = KMeans(n_clusters=3).fit(X)
+        
+        # 3. Lưu model
+        joblib.dump(kmeans, 'student_cluster_model.pkl')
+        
+        return jsonify({'status': 'success', 'message': 'Đã huấn luyện lại mô hình AI!'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    
 # --- API PHÂN TÍCH AI ---
 @app.route('/api/students/<int:student_id>/analysis')
 def analyze_student_api(student_id):
