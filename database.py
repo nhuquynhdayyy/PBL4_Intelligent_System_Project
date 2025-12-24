@@ -1,6 +1,8 @@
 # database.py
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from flask_login import UserMixin
+
 
 db = SQLAlchemy()
 
@@ -93,7 +95,7 @@ class Grade(db.Model):
     
 # Mở file database.py và thêm vào cuối
 
-class User(db.Model):
+class User(db.Model, UserMixin):
     """Bảng lưu tài khoản người dùng (giáo viên, admin)."""
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)

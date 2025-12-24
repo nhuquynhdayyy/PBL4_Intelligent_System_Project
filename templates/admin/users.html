@@ -1,0 +1,103 @@
+{% extends "admin/admin_layout.html" %}
+
+{% block title %}Quản lý Người dùng & Phân công{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-users-cog me-2"></i> Quản lý Người dùng & Phân công</h1>
+</div>
+
+<!-- Vùng hiển thị thông báo (flash messages) -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<!-- Form tạo tài khoản giáo viên mới -->
+<div class="card mb-4">
+    <div class="card-header fw-bold">
+        <i class="fas fa-user-plus me-2"></i> Tạo tài khoản Giáo viên mới
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin_users') }}">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="username" class="form-label">Tên đăng nhập</label>
+                    <input type="text" class="form-control" id="username" name="username" required>
+                </div>
+                <div class="col-md-4">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" class="form-control" id="email" name="email" required>
+                </div>
+                <div class="col-md-4">
+                    <label for="password" class="form-label">Mật khẩu ban đầu</label>
+                    <input type="password" class="form-control" id="password" name="password" required>
+                </div>
+                <div class="col-12 text-end">
+                    <button type="submit" class="btn btn-primary">Tạo tài khoản</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Bảng danh sách và phân công giáo viên -->
+<div class="card">
+    <div class="card-header fw-bold">
+        <i class="fas fa-chalkboard-teacher me-2"></i> Phân công Lớp học cho Giáo viên
+    </div>
+    <div class="card-body">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th scope="col">Tên đăng nhập</th>
+                    <th scope="col">Email</th>
+                    <th scope="col" style="width: 35%;">Lớp học được phân công</th>
+                    <th scope="col" class="text-center">Hành động</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td><strong>{{ user.username }}</strong></td>
+                    <td>{{ user.email }}</td>
+                    <td>
+                        <!-- Dropdown này phải có chính xác data-user-id -->
+                        <select class="form-select" data-user-id="{{ user.id }}">
+                            <option value="0">-- Chưa phân công --</option>
+                            {% for class_item in classes %}
+                                <option value="{{ class_item.id }}" {% if user.class_id == class_item.id %}selected{% endif %}>
+                                    {{ class_item.name }} ({{ class_item.academic_year }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td class="text-center">
+                        <!-- Nút này phải có chính xác class và data-user-id -->
+                        <button class="btn btn-sm btn-success save-assignment-btn" data-user-id="{{ user.id }}" disabled>
+                            <i class="fas fa-save"></i> Lưu
+                        </button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-4">Chưa có tài khoản giáo viên nào. Hãy tạo một tài khoản mới ở trên.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }} <!-- Dòng này hữu ích nếu layout cha của bạn cũng có block scripts -->
+    <!-- Link đến file JavaScript bên ngoài -->
+    <script src="{{ url_for('static', filename='js/admin_users.js') }}"></script>
+{% endblock %}
