@@ -420,3 +420,48 @@ if __name__ == '__main__':
             db.session.commit()
             
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+@app.route('/api/sessions/export', methods=['POST'])
+def export_session_data():
+    try:
+        # Lấy dữ liệu JSON từ form ẩn đã gửi
+        export_data_str = request.form.get('export_data')
+        if not export_data_str:
+            return "Không có dữ liệu", 400
+            
+        data = json.loads(export_data_str)
+        stats = data.get('stats', {})
+        students = data.get('students', [])
+        subject_name = data.get('subject_name', 'Unknown Subject')
+        session_id = data.get('session_id', 'Unknown_Session')
+
+        # Tạo một bộ đệm trong bộ nhớ để ghi file CSV
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        # Ghi header cho file CSV
+        writer.writerow(['Mã Sinh Viên', 'Họ và Tên', 'Số lần phát biểu'])
+
+        # Tạo một dictionary để dễ dàng tra cứu tên sinh viên từ mã
+        student_map = {s['student_code']: s['full_name'] for s in students}
+        
+        # Ghi dữ liệu từng sinh viên
+        for student_code, count in stats.items():
+            full_name = student_map.get(student_code, 'Không rõ tên')
+            writer.writerow([student_code, full_name, count])
+
+        # Chuẩn bị file để trả về cho người dùng
+        output.seek(0)
+        
+        # Tạo tên file động
+        filename = f"ThongKe_BuoiHoc_{session_id}_{subject_name.replace(' ', '_')}.csv"
+
+        return Response(
+            output,
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment;filename={filename}"}
+        )
+
+    except Exception as e:
+        # Ghi log lỗi để debug
+        print(f"Lỗi khi xuất dữ liệu: {e}")
+        return "Có lỗi xảy ra trong quá trình xuất file.", 500
