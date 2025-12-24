@@ -1,8 +1,6 @@
 # database.py
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
-from flask_login import UserMixin
-
 
 db = SQLAlchemy()
 
@@ -16,7 +14,6 @@ class Class(db.Model):
     # Mối quan hệ
     students = db.relationship('Student', backref='class_info', lazy=True)
     subjects = db.relationship('Subject', backref='class_info', lazy=True)
-    teachers = db.relationship('User', backref='assigned_class', lazy=True)
 
 class Student(db.Model):
     """Bảng lưu thông tin học sinh."""
@@ -63,10 +60,9 @@ class Session(db.Model):
     
     # Khóa ngoại
     subject_id = db.Column(db.Integer, db.ForeignKey('subjects.id'), nullable=False)
-    class_id = db.Column(db.Integer, db.ForeignKey('classes.id'), nullable=False) # <-- THÊM DÒNG NÀY
+    
     # Mối quan hệ
     speech_logs = db.relationship('SpeechLog', backref='session', lazy='dynamic')
-    class_ = db.relationship('Class', backref='sessions') # <-- THÊM DÒNG NÀY (tùy chọn nhưng nên có)
 
 class SpeechLog(db.Model):
     """Bảng ghi lại mỗi lượt phát biểu."""
@@ -79,7 +75,7 @@ class SpeechLog(db.Model):
     student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
     session_id = db.Column(db.Integer, db.ForeignKey('sessions.id'), nullable=False)
 
-# --- MỚI: Bảng lưu điểm số của học sinh ---
+# --- Bảng lưu điểm số của học sinh ---
 class Grade(db.Model):
     """Bảng lưu điểm số của học sinh."""
     __tablename__ = 'grades'
@@ -92,21 +88,3 @@ class Grade(db.Model):
     # Khóa ngoại
     student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
     subject_id = db.Column(db.Integer, db.ForeignKey('subjects.id'), nullable=False)
-    
-# Mở file database.py và thêm vào cuối
-
-class User(db.Model, UserMixin):
-    """Bảng lưu tài khoản người dùng (giáo viên, admin)."""
-    __tablename__ = 'users'
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(256), nullable=False) # Sẽ lưu mật khẩu đã băm
-    role = db.Column(db.String(20), nullable=False, default='teacher') # Vai trò: 'teacher' hoặc 'admin'
-    
-    # Khóa ngoại: Mỗi giáo viên sẽ được gán cho một lớp học
-    # Admin có thể không thuộc lớp nào, nên nullable=True
-    class_id = db.Column(db.Integer, db.ForeignKey('classes.id'), nullable=True)
-
-    def __repr__(self):
-        return f'<User {self.username}>'

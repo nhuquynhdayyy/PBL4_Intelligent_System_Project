@@ -3,47 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Sử dụng Bootstrap 5 để có giao diện đẹp nhanh chóng -->
+    <title>{% block title %}Admin Dashboard{% endblock %}</title>
+    
+    <!-- Link thư viện -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <title>{% block title %}Admin Dashboard{% endblock %}</title>
+    
+    <!-- Link đến file CSS chung của dự án để lấy các biến màu -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
     <style>
-        body { display: flex; min-height: 100vh; }
-        .sidebar { width: 250px; background-color: #343a40; color: white; }
-        .sidebar a { color: rgba(255, 255, 255, 0.8); text-decoration: none; display: block; padding: 1rem; }
-        .sidebar a:hover, .sidebar a.active { background-color: #495057; color: white; }
-        .content { flex-grow: 1; padding: 2rem; }
+        :root {
+            --admin-sidebar-bg: #1e293b; /* Màu tối chuyên nghiệp */
+        }
+        body { display: flex; min-height: 100vh; background-color: #f8fafc; }
+        
+        /* Sidebar Styling */
+        .sidebar { 
+            width: 260px; 
+            background-color: var(--admin-sidebar-bg); 
+            color: white; 
+            position: fixed;
+            height: 100vh;
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+        
+        .sidebar .nav-link {
+            color: #cbd5e1;
+            padding: 12px 20px;
+            margin: 4px 12px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        
+        .sidebar .nav-link:hover {
+            background-color: rgba(255,255,255,0.1);
+            color: white;
+        }
+        
+        .sidebar .nav-link.active {
+            background-color: var(--primary-color);
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Content Area Styling */
+        .main-wrapper {
+            flex-grow: 1;
+            margin-left: 260px; /* Đẩy ra để không bị sidebar che */
+            padding: 2rem;
+            width: calc(100% - 260px);
+        }
+
+        .admin-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
+            padding: 24px;
+            border: 1px solid var(--border-color);
+        }
     </style>
 </head>
 <body>
-    <!-- === SIDEBAR === -->
+    <!-- SIDEBAR -->
     <div class="sidebar d-flex flex-column p-3">
-        <h4 class="text-center">Admin Panel</h4>
-        <hr>
+        <div class="text-center mb-4 mt-2">
+            <h4 class="fw-bold"><i class="fas fa-user-shield me-2"></i>Admin Panel</h4>
+        </div>
+        <hr style="opacity: 0.1;">
+        
         <ul class="nav nav-pills flex-column mb-auto">
             <li class="nav-item">
-                <a href="#" class="nav-link"><i class="fas fa-tachometer-alt me-2"></i> Dashboard</a>
+                <a href="{{ url_for('admin_classes') }}" class="nav-link {% if request.endpoint == 'admin_classes' %}active{% endif %}">
+                    <i class="fas fa-school me-2"></i> Quản lý Lớp học
+                </a>
             </li>
             <li>
-                <!-- Đặt class 'active' để làm nổi bật trang hiện tại -->
-                <a href="{{ url_for('admin_classes') }}" class="nav-link active"><i class="fas fa-school me-2"></i> Quản lý Lớp học</a>
+                <a href="{{ url_for('admin_users') }}" class="nav-link {% if request.endpoint == 'admin_users' %}active{% endif %}">
+                    <i class="fas fa-users-cog me-2"></i> Phân công Giáo viên
+                </a>
             </li>
-            <li>
-                <a href="#" class="nav-link"><i class="fas fa-user-graduate me-2"></i> Quản lý Học sinh</a>
-            </li>
-            <li>
-                <a href="#" class="nav-link"><i class="fas fa-book me-2"></i> Quản lý Môn học</a>
-            </li>
+            <!-- Thêm link quay lại trang chủ giáo viên nếu cần -->
+           
         </ul>
+
+        <hr style="opacity: 0.1;">
+        <div class="dropdown p-2">
+            <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" id="dropdownUser" data-bs-toggle="dropdown" aria-expanded="false">
+                <div class="bg-primary rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                    {{ current_user.username[0] | upper }}
+                </div>
+                <strong>{{ current_user.username }}</strong>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-dark shadow" aria-labelledby="dropdownUser">
+                <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Đăng xuất</a></li>
+            </ul>
+        </div>
     </div>
 
-    <!-- === NỘI DUNG CHÍNH === -->
-    <div class="content">
-        {% block content %}
-        <!-- Nội dung của từng trang cụ thể sẽ được chèn vào đây -->
-        {% endblock %}
+    <!-- MAIN CONTENT -->
+    <div class="main-wrapper">
+        <div class="admin-card">
+            {% block content %}{% endblock %}
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
 </body>
 </html>
