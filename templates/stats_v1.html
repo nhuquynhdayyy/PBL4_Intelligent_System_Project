@@ -1,0 +1,63 @@
+{% extends "layout.html" %}
+{% block title %}Thống kê & Phân tích{% endblock %}
+
+{% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/stats.css') }}">
+{% endblock %}
+
+{% block content %}
+    <div class="page-header">
+        <h2>📈 Thống kê & Phân tích - Lớp 9/1</h2>
+    </div>
+
+    <div class="stats-grid">
+        <!-- Top học sinh tích cực -->
+        <div class="stat-card" id="top-students-card">
+            <div class="card-header">
+                <h3><i class="fas fa-trophy"></i> Top học sinh tích cực nhất</h3>
+                <small>Tổng hợp từ tất cả các môn</small>
+            </div>
+            <div class="card-body">
+                <div id="topStudentsRanking">
+                    <p class="placeholder-text">Đang tải bảng xếp hạng...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Phân tích Xu hướng (AI) -->
+        <div class="stat-card" id="ai-trends-card">
+            <div class="card-header">
+                <h3><i class="fas fa-brain"></i> Phân tích Xu hướng</h3>
+                 <small>AI-Powered Insights</small>
+            </div>
+            <div class="card-body">
+                <!-- THÊM MỚI: Dropdown chọn học sinh -->
+                <div class="form-group mb-3">
+                    <label for="student-select-for-analysis"><strong>Chọn một học sinh để xem phân tích chi tiết:</strong></label>
+                    <select id="student-select-for-analysis" class="form-select mt-2">
+                        <option value="">-- Đang tải danh sách học sinh --</option>
+                    </select>
+                </div>
+                <div id="aiAnalysisResult">
+                    <p class="placeholder-text">Vui lòng chọn một học sinh để bắt đầu phân tích...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phân tích theo môn học -->
+    <div class="stat-card full-width-card" id="subject-analysis-card">
+        <div class="card-header">
+             <h3><i class="fas fa-book-open"></i> Phân tích theo từng môn học</h3>
+        </div>
+        <div class="card-body">
+             <div id="subjectAnalysis">
+                <p class="placeholder-text">Đang tải phân tích môn học...</p>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/stats.js') }}"></script>
+{% endblock %}

@@ -1,22 +1,29 @@
-# File: app.py
-from flask import Flask, render_template, request, jsonify
+# =============================================================
+# === 1. KHAI BÁO THƯ VIỆN (IMPORTS) ===
+# =============================================================
+from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, flash
 from flask_socketio import SocketIO, emit
 from flask_migrate import Migrate
 from database import db, Class, Student, Subject, Session, SpeechLog, Grade
 import os
+from database import Class 
 from dotenv import load_dotenv
 from sqlalchemy import func, desc, text
 from datetime import datetime
 import pandas as pd
 import joblib
 import json
+import io
+import csv
+from flask import request, redirect, url_for # Nhớ import thêm
 
 # =============================================================
-# === 1. CẤU HÌNH HỆ THỐNG ===
+# === 2. CẤU HÌNH HỆ THỐNG ===
 # =============================================================
 load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'secret')
+
 
 # Cấu hình Database
 db_user = os.getenv('DB_USER', 'root')
@@ -32,7 +39,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 migrate = Migrate(app, db)
 
 # =============================================================
-# === 2. ROUTES GIAO DIỆN (VIEW) ===
+# === 3. ROUTES GIAO DIỆN (VIEW) ===
 # =============================================================
 @app.route('/')
 def dashboard(): 
@@ -54,8 +61,41 @@ def stats():
 def liveclass(): 
     return render_template('liveclass.html')
 
+# Thêm vào khu vực ROUTES GIAO DIỆN
+@app.route('/admin/dashboard')
+def admin_dashboard():
+    return render_template('admin/dashboard.html')
+# Thêm methods=['GET', 'POST'] vào decorator
+@app.route('/admin/classes', methods=['GET', 'POST'])
+def admin_classes():
+    if request.method == 'POST':
+        name = request.form.get('class_name')
+        year = request.form.get('academic_year')
+        
+        if name and year:
+            # Kiểm tra xem tên lớp đã tồn tại chưa
+            existing_class = Class.query.filter_by(name=name).first()
+            if existing_class:
+                flash(f"Lỗi: Tên lớp '{name}' đã tồn tại.", 'danger')
+            else:
+                new_class = Class(name=name, academic_year=year)
+                db.session.add(new_class)
+                db.session.commit()
+                flash(f"Đã thêm thành công lớp học '{name}'.", 'success')
+            return redirect(url_for('admin_classes'))
+
+    all_classes = Class.query.order_by(Class.name).all()
+    return render_template('admin/classes.html', classes=all_classes)
+@app.route('/admin/students')
+def admin_students():
+    return render_template('admin/students.html')
+
+@app.route('/admin/subjects')
+def admin_subjects():
+    return render_template('admin/subjects.html')
+
 # =============================================================
-# === 3. API ENDPOINTS (LOGIC) ===
+# === 4. API ENDPOINTS (LOGIC) ===
 # =============================================================
 
 # --- API NHẬN DIỆN TỪ AI SERVER ---
@@ -97,6 +137,7 @@ def subjects_api():
         total_speeches = SpeechLog.query.join(Session).filter(Session.subject_id == s.id).count()
         result.append({'id': s.id, 'name': s.name, 'icon': s.icon, 'category': s.category, 'session_count': session_count, 'total_speeches': total_speeches})
     return jsonify(result)
+
 @app.route('/api/subjects/<int:subject_id>', methods=['GET', 'PUT', 'DELETE'])
 def single_subject_api(subject_id):
     subject = db.session.get(Subject, subject_id)
@@ -113,32 +154,22 @@ def single_subject_api(subject_id):
     
     elif request.method == 'DELETE':
         try:
-            # 1. Xóa tất cả điểm số liên quan đến môn học này
             Grade.query.filter_by(subject_id=subject.id).delete()
-
-            # 2. Tìm tất cả các buổi học (Session) của môn học này
             sessions = Session.query.filter_by(subject_id=subject.id).all()
             session_ids = [s.id for s in sessions]
-
             if session_ids:
-                # 3. Xóa tất cả phát biểu (SpeechLog) thuộc về các buổi học này
                 SpeechLog.query.filter(SpeechLog.session_id.in_(session_ids)).delete(synchronize_session=False)
-
-            # 4. Xóa tất cả các buổi học (Session) của môn học này
             Session.query.filter_by(subject_id=subject.id).delete()
-
-            # 5. Cuối cùng mới xóa chính môn học đó
             db.session.delete(subject)
-            
             db.session.commit()
             return jsonify({'status': 'success', 'message': f"Đã xóa môn học '{subject.name}' và toàn bộ dữ liệu liên quan."})
-        
         except Exception as e:
             db.session.rollback()
             print(f"Lỗi khi xóa môn học: {str(e)}")
             return jsonify({'status': 'error', 'message': f'Không thể xóa môn học do có lỗi ràng buộc dữ liệu.'}), 500
     
     return jsonify({'id': subject.id, 'name': subject.name, 'icon': subject.icon, 'category': subject.category})
+
 # --- QUẢN LÝ HỌC SINH ---
 @app.route('/api/students', methods=['GET', 'POST'])
 def students_api():
@@ -150,7 +181,7 @@ def students_api():
         db.session.commit()
         return jsonify({'status': 'success', 'message': 'Thêm học sinh thành công'})
     
-    students = Student.query.filter_by(class_id=1).all()
+    students = Student.query.filter_by(class_id=1).order_by(Student.full_name).all()
     return jsonify([{'id': s.id, 'full_name': s.full_name, 'student_code': s.student_code} for s in students])
 
 @app.route('/api/students/<int:student_id>', methods=['GET', 'PUT', 'DELETE'])
@@ -236,7 +267,7 @@ def start_session_api():
     ongoing = Session.query.filter_by(status='ongoing').first()
     if ongoing: return jsonify({"status": "error", "message": "Một buổi học khác đang diễn ra."}), 409
 
-    new_session = Session(subject_id=subject_id, status='ongoing')
+    new_session = Session(subject_id=subject_id, status='ongoing', class_id=1) # Giả sử class_id=1
     db.session.add(new_session)
     db.session.commit()
     return jsonify({"status": "success", "session_id": new_session.id})
@@ -281,7 +312,7 @@ def session_details_api(session_id):
     details = db.session.query(Student.full_name, func.count(SpeechLog.id)).join(SpeechLog).filter(SpeechLog.session_id == session_id).group_by(Student.id).all()
     return jsonify([{"name": d[0], "count": d[1]} for d in details])
 
-# --- THỐNG KÊ DASHBOARD ---
+# --- THỐNG KÊ DASHBOARD CHÍNH ---
 @app.route('/api/dashboard_stats')
 def dashboard_stats_api():
     try:
@@ -302,49 +333,7 @@ def dashboard_stats_api():
             })
         return jsonify({'stats': stats, 'recent_activity': recent})
     except: return jsonify({"message": "Lỗi server"}), 500
-
-# --- PHÂN TÍCH AI ---
-@app.route('/api/students/<int:student_id>/analysis')
-def analyze_student_api(student_id):
-    try:
-        model = joblib.load('student_cluster_model.pkl')
-        scaler = joblib.load('student_data_scaler.pkl')
-        with open('cluster_map.json', 'r', encoding='utf-8') as f:
-            cluster_map = json.load(f)
-            
-        query = text(f"""
-            SELECT s.id, s.full_name,
-                COUNT(DISTINCT CASE WHEN sub.category = 'Khoa học Tự nhiên' THEN sl.id END) AS speeches_natural_science,
-                COUNT(DISTINCT CASE WHEN sub.category = 'Khoa học Xã hội' THEN sl.id END) AS speeches_social_science,
-                COUNT(DISTINCT CASE WHEN sub.category = 'Ngoại ngữ' THEN sl.id END) AS speeches_language,
-                COUNT(DISTINCT CASE WHEN sub.category = 'Năng khiếu' THEN sl.id END) AS speeches_aptitude,
-                IFNULL(AVG(CASE WHEN sub.category = 'Khoa học Tự nhiên' THEN g.score END), 0) AS avg_grade_natural_science,
-                IFNULL(AVG(CASE WHEN sub.category = 'Khoa học Xã hội' THEN g.score END), 0) AS avg_grade_social_science,
-                IFNULL(AVG(CASE WHEN sub.category = 'Ngoại ngữ' THEN g.score END), 0) AS avg_grade_language,
-                IFNULL(AVG(CASE WHEN sub.category = 'Năng khiếu' THEN g.score END), 0) AS avg_grade_aptitude
-            FROM students s
-            LEFT JOIN speech_logs sl ON s.id = sl.student_id
-            LEFT JOIN sessions sess ON sl.session_id = sess.id
-            LEFT JOIN grades g ON s.id = g.student_id
-            LEFT JOIN subjects sub ON sub.id = sess.subject_id OR sub.id = g.subject_id
-            WHERE s.id = {student_id}
-            GROUP BY s.id;
-        """)
-        
-        df = pd.read_sql(query, db.engine)
-        if df.empty: return jsonify({'tendency': 'Chưa đủ dữ liệu', 'reason': 'Học sinh chưa có hoạt động.'})
-        
-        features = df.drop(columns=['id', 'full_name'])
-        features_scaled = scaler.transform(features)
-        prediction = model.predict(features_scaled)[0]
-        
-        return jsonify({
-            'tendency': cluster_map.get(str(prediction), "Đang phân tích"),
-            'reason': f"Dựa trên dữ liệu học tập của {df.iloc[0]['full_name']}."
-        })
-    except Exception as e:
-        return jsonify({'tendency': 'Lỗi AI', 'reason': str(e)}), 500
-
+    
 @app.route('/api/untrained_faces')
 def untrained_faces_api():
     DATASET_PATH = "datasets/faces"
@@ -354,8 +343,253 @@ def untrained_faces_api():
         return jsonify([c for c in trained if c not in used])
     except: return jsonify([])
 
+# --- API FOR PROFESSIONAL STATS DASHBOARD ---
+# === THAY THẾ TOÀN BỘ HÀM NÀY TRONG app.py ===
+@app.route('/api/statistics')
+def statistics_api():
+    try:
+        class_id = 1 
+
+        # 1. Lấy bảng xếp hạng của TẤT CẢ học sinh (Query này đã ổn, giữ nguyên)
+        all_students_ranking_query = db.session.query(
+            Student.id,
+            Student.full_name, 
+            func.count(SpeechLog.id).label('total_speeches')
+        ).outerjoin(SpeechLog).filter(Student.class_id == class_id)\
+         .group_by(Student.id).order_by(desc('total_speeches')).all()
+        
+        all_students_ranking = [
+            {'id': s[0], 'name': s[1], 'speeches': s[2]} 
+            for s in all_students_ranking_query
+        ]
+
+        # 2. Tính toán các chỉ số KPI tổng quan (SỬA LẠI QUERY Ở ĐÂY)
+        
+        # Sửa lại cách tính total_sessions
+        total_sessions = db.session.query(func.count(Session.id))\
+            .join(Subject).filter(Subject.class_id == class_id).scalar() or 0
+
+        # Sửa lại cách tính total_speeches để chắc chắn hơn
+        # Thay vì SUM(speech_count), chúng ta đếm trực tiếp từ SpeechLog
+        total_speeches = db.session.query(func.count(SpeechLog.id))\
+            .join(Session).join(Subject).filter(Subject.class_id == class_id).scalar() or 0
+
+        total_students = Student.query.filter(Student.class_id == class_id).count()
+        most_active_student = all_students_ranking[0]['name'] if all_students_ranking else "N/A"
+
+        kpi_data = {
+            "total_sessions": total_sessions,
+            "total_speeches": total_speeches, # Không cần int() nữa
+            "total_students": total_students,
+            "most_active_student": most_active_student
+        }
+
+        # 3. Phân tích theo từng môn học (Phần này đã ổn, giữ nguyên)
+        subjects = Subject.query.filter_by(class_id=class_id).all()
+        subject_analysis = []
+        for s in subjects:
+            session_count = Session.query.filter_by(subject_id=s.id).count()
+            
+            total_speeches_in_sub = db.session.query(func.count(SpeechLog.id))\
+                .join(Session).filter(Session.subject_id == s.id).scalar() or 0
+
+            top_in_sub = db.session.query(
+                Student.full_name, 
+                func.count(SpeechLog.id).label('speeches')
+            ).join(SpeechLog).join(Session).filter(Session.subject_id == s.id)\
+             .group_by(Student.id).order_by(desc('speeches')).first()
+            
+            subject_analysis.append({
+                'id': s.id, 'name': s.name, 'icon': s.icon, 'session_count': session_count,
+                'total_speeches': total_speeches_in_sub,
+                'top_student_name': top_in_sub[0] if top_in_sub else "N/A",
+                'top_student_speeches': top_in_sub[1] if top_in_sub else 0
+            })
+        
+        # 4. Trả về JSON theo cấu trúc mới
+        return jsonify({
+            'kpis': kpi_data,
+            'all_students_ranking': all_students_ranking,
+            'subject_analysis': subject_analysis
+        })
+
+    except Exception as e:
+        # Ghi log lỗi chi tiết hơn
+        import traceback
+        print("--- LỖI TRONG STATISTICS API ---")
+        traceback.print_exc()
+        print("-----------------------------")
+        return jsonify({"message": f"Lỗi server khi lấy thống kê: {str(e)}"}), 500
+# === THAY THẾ TOÀN BỘ HÀM NÀY BẰNG PHIÊN BẢN ỔN ĐỊNH HƠN ===
+@app.route('/api/students/<int:student_id>/analysis')
+def analyze_student_api(student_id):
+    try:
+        class_id = 1
+        student = db.session.get(Student, student_id)
+        if not student:
+            return jsonify({"message": "Không tìm thấy học sinh"}), 404
+
+        # 1. TÍNH TOÁN KPI CÁ NHÂN
+
+        # SỬA LỖI CHÍNH: Thay thế câu lệnh RANK() phức tạp bằng logic Python đơn giản
+        # Lấy toàn bộ bảng xếp hạng của lớp
+        full_ranking = db.session.query(
+            Student.id,
+            func.count(SpeechLog.id).label('total_speeches')
+        ).outerjoin(SpeechLog).filter(Student.class_id == class_id)\
+         .group_by(Student.id).order_by(desc('total_speeches')).all()
+
+        # Tìm thứ hạng của học sinh trong danh sách vừa lấy
+        student_rank = 0
+        for i, s in enumerate(full_ranking):
+            if s.id == student_id:
+                student_rank = i + 1
+                break
+        
+        # Tổng số phát biểu (giữ nguyên)
+        total_speeches = SpeechLog.query.filter_by(student_id=student_id).count()
+
+        # Môn học thế mạnh (giữ nguyên)
+        best_subject_query = db.session.query(
+            Subject.name
+        ).join(Session).join(SpeechLog).filter(SpeechLog.student_id == student_id)\
+         .group_by(Subject.id).order_by(func.count(SpeechLog.id).desc()).first()
+        best_subject = best_subject_query[0] if best_subject_query else "N/A"
+
+        student_kpis = {
+            "rank": student_rank,
+            "total_speeches": total_speeches,
+            "best_subject": best_subject
+        }
+
+        # 2. DỮ LIỆU BIỂU ĐỒ ĐƯỜNG (TREND) (giữ nguyên)
+        trend_data_query = db.session.query(
+            Session.id,
+            func.count(SpeechLog.id)
+        ).join(SpeechLog).filter(SpeechLog.student_id == student_id)\
+         .group_by(Session.id).order_by(Session.id.asc()).all()
+
+        trend_data = {
+            "labels": [f"Buổi {s[0]}" for s in trend_data_query],
+            "data": [s[1] for s in trend_data_query]
+        }
+
+        # 3. DỮ LIỆU BIỂU ĐỒ RADAR (giữ nguyên)
+        subjects_in_class = Subject.query.filter_by(class_id=class_id).all()
+        radar_labels = [s.name for s in subjects_in_class]
+        radar_data = []
+        for sub in subjects_in_class:
+            count = db.session.query(func.count(SpeechLog.id))\
+                .join(Session).filter(Session.subject_id == sub.id, SpeechLog.student_id == student_id).scalar() or 0
+            radar_data.append(count)
+        radar_chart_data = {"labels": radar_labels, "data": radar_data}
+        
+        # 4. NHẬN ĐỊNH TỪ AI (giữ nguyên)
+        tendency = "Ổn định"
+        if len(trend_data['data']) > 1:
+            if trend_data['data'][-1] > trend_data['data'][0]:
+                tendency = "Có xu hướng tiến bộ"
+            elif trend_data['data'][-1] < trend_data['data'][0]:
+                tendency = "Cần cải thiện sự tập trung"
+        reason = (f"Học sinh hiện có {total_speeches} lượt phát biểu, xếp hạng {student_rank} trong lớp. "
+                f"Môn học nổi bật nhất là {best_subject}.")
+        ai_insight = {"tendency": tendency, "reason": reason}
+
+        # 5. Trả về JSON theo cấu trúc hoàn chỉnh
+        return jsonify({
+            "kpis": student_kpis,
+            "trend": trend_data,
+            "radar": radar_chart_data,
+            "insight": ai_insight
+        })
+
+    except Exception as e:
+        import traceback
+        print(f"--- LỖI TRONG STUDENT ANALYSIS API (ID: {student_id}) ---")
+        traceback.print_exc()
+        print("-------------------------------------------------")
+        return jsonify({"message": f"Lỗi server khi phân tích: {str(e)}"}), 500
+
+# --- XUẤT DỮ LIỆU ---
+@app.route('/api/sessions/export', methods=['POST'])
+def export_session_data():
+    try:
+        export_data_str = request.form.get('export_data')
+        if not export_data_str: return "Không có dữ liệu", 400
+        
+        data = json.loads(export_data_str)
+        stats = data.get('stats', {})
+        students = data.get('students', [])
+        subject_name = data.get('subject_name', 'Unknown Subject')
+        session_id = data.get('session_id', 'Unknown_Session')
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['Mã Sinh Viên', 'Họ và Tên', 'Số lần phát biểu'])
+
+        student_map = {s['student_code']: s['full_name'] for s in students}
+        for student_code, count in stats.items():
+            full_name = student_map.get(student_code, 'Không rõ tên')
+            writer.writerow([student_code, full_name, count])
+
+        output.seek(0)
+        filename = f"ThongKe_BuoiHoc_{session_id}_{subject_name.replace(' ', '_')}.csv"
+        return Response(output, mimetype="text/csv", headers={"Content-Disposition": f"attachment;filename={filename}"})
+    except Exception as e:
+        print(f"Lỗi khi xuất dữ liệu: {e}")
+        return "Có lỗi xảy ra trong quá trình xuất file.", 500
+# API để lấy thông tin chi tiết của một lớp (dùng cho form Sửa)
+@app.route('/api/classes/<int:class_id>', methods=['GET'])
+def get_class_details(class_id):
+    class_obj = db.session.get(Class, class_id)
+    if class_obj:
+        return jsonify({
+            'id': class_obj.id,
+            'name': class_obj.name,
+            'academic_year': class_obj.academic_year
+        })
+    return jsonify({'error': 'Không tìm thấy lớp học'}), 404
+
+# API để cập nhật thông tin một lớp (dùng cho form Sửa)
+@app.route('/api/classes/<int:class_id>', methods=['PUT'])
+def update_class(class_id):
+    class_obj = db.session.get(Class, class_id)
+    if not class_obj:
+        return jsonify({'status': 'error', 'message': 'Không tìm thấy lớp học'}), 404
+    
+    data = request.get_json()
+    name = data.get('name')
+    year = data.get('academic_year')
+
+    if not name or not year:
+        return jsonify({'status': 'error', 'message': 'Tên lớp và năm học không được để trống'}), 400
+
+    # Kiểm tra tên mới có trùng với lớp khác không
+    existing_class = Class.query.filter(Class.name == name, Class.id != class_id).first()
+    if existing_class:
+        return jsonify({'status': 'error', 'message': f"Tên lớp '{name}' đã tồn tại"}), 409
+
+    class_obj.name = name
+    class_obj.academic_year = year
+    db.session.commit()
+    return jsonify({'status': 'success', 'message': 'Cập nhật lớp học thành công'})
+
+# API để xóa một lớp học
+@app.route('/api/classes/<int:class_id>', methods=['DELETE'])
+def delete_class(class_id):
+    class_obj = db.session.get(Class, class_id)
+    if not class_obj:
+        return jsonify({'status': 'error', 'message': 'Không tìm thấy lớp học'}), 404
+    
+    # Kiểm tra xem lớp có học sinh hoặc môn học nào không
+    if class_obj.students or class_obj.subjects:
+        return jsonify({'status': 'error', 'message': 'Không thể xóa lớp học này vì vẫn còn học sinh hoặc môn học.'}), 409
+
+    db.session.delete(class_obj)
+    db.session.commit()
+    return jsonify({'status': 'success', 'message': 'Đã xóa lớp học thành công'})
 # =============================================================
-# === 4. SOCKET.IO ===
+# === 5. SOCKET.IO ===
 # =============================================================
 @socketio.on('confirm_recognition', namespace='/live')
 def handle_confirm(data):
@@ -366,50 +600,10 @@ def handle_confirm(data):
             db.session.add(SpeechLog(student_id=stu.id, session_id=sess.id))
             db.session.commit()
             socketio.emit('speech_update', {'student_code': stu.student_code, 'full_name': stu.full_name}, namespace='/live')
-            # --- API THỐNG KÊ TỔNG HỢP (Dùng cho trang stats.html) ---
-@app.route('/api/statistics')
-def statistics_api():
-    try:
-        class_id = 1
-        # 1. Lấy Top 5 học sinh phát biểu nhiều nhất
-        top_students_query = db.session.query(
-            Student.full_name, 
-            func.count(SpeechLog.id).label('total_speeches')
-        ).join(SpeechLog).filter(Student.class_id == class_id)\
-         .group_by(Student.id).order_by(desc('total_speeches')).limit(5).all()
-        
-        top_students = [{'name': s[0], 'speeches': s[1]} for s in top_students_query]
 
-        # 2. Phân tích theo từng môn học
-        subjects = Subject.query.filter_by(class_id=class_id).all()
-        subject_analysis = []
-        for s in subjects:
-            # Đếm số buổi học của môn
-            session_count = Session.query.filter_by(subject_id=s.id).count()
-            
-            # Tìm học sinh hăng hái nhất của môn đó
-            top_in_sub = db.session.query(
-                Student.full_name, 
-                func.count(SpeechLog.id).label('speeches')
-            ).join(SpeechLog).join(Session).filter(Session.subject_id == s.id)\
-             .group_by(Student.id).order_by(desc('speeches')).first()
-            
-            subject_analysis.append({
-                'name': s.name, 
-                'icon': s.icon, 
-                'session_count': session_count,
-                'top_student_name': top_in_sub[0] if top_in_sub else "Chưa có",
-                'top_student_speeches': top_in_sub[1] if top_in_sub else 0
-            })
-
-        return jsonify({
-            'top_students': top_students, 
-            'subject_analysis': subject_analysis
-        })
-    except Exception as e:
-        print(f"Lỗi Statistics API: {str(e)}")
-        return jsonify({"message": "Lỗi server khi lấy thống kê"}), 500
-
+# =============================================================
+# === 6. KHỐI KHỞI ĐỘNG SERVER (PHẢI LUÔN NẰM CUỐI CÙNG) ===
+# =============================================================
 if __name__ == '__main__':
     with app.app_context():
         # Tự động tạo bảng nếu chưa có
@@ -420,48 +614,3 @@ if __name__ == '__main__':
             db.session.commit()
             
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
-@app.route('/api/sessions/export', methods=['POST'])
-def export_session_data():
-    try:
-        # Lấy dữ liệu JSON từ form ẩn đã gửi
-        export_data_str = request.form.get('export_data')
-        if not export_data_str:
-            return "Không có dữ liệu", 400
-            
-        data = json.loads(export_data_str)
-        stats = data.get('stats', {})
-        students = data.get('students', [])
-        subject_name = data.get('subject_name', 'Unknown Subject')
-        session_id = data.get('session_id', 'Unknown_Session')
-
-        # Tạo một bộ đệm trong bộ nhớ để ghi file CSV
-        output = io.StringIO()
-        writer = csv.writer(output)
-
-        # Ghi header cho file CSV
-        writer.writerow(['Mã Sinh Viên', 'Họ và Tên', 'Số lần phát biểu'])
-
-        # Tạo một dictionary để dễ dàng tra cứu tên sinh viên từ mã
-        student_map = {s['student_code']: s['full_name'] for s in students}
-        
-        # Ghi dữ liệu từng sinh viên
-        for student_code, count in stats.items():
-            full_name = student_map.get(student_code, 'Không rõ tên')
-            writer.writerow([student_code, full_name, count])
-
-        # Chuẩn bị file để trả về cho người dùng
-        output.seek(0)
-        
-        # Tạo tên file động
-        filename = f"ThongKe_BuoiHoc_{session_id}_{subject_name.replace(' ', '_')}.csv"
-
-        return Response(
-            output,
-            mimetype="text/csv",
-            headers={"Content-Disposition": f"attachment;filename={filename}"}
-        )
-
-    except Exception as e:
-        # Ghi log lỗi để debug
-        print(f"Lỗi khi xuất dữ liệu: {e}")
-        return "Có lỗi xảy ra trong quá trình xuất file.", 500

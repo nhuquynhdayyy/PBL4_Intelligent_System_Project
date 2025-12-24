@@ -1,0 +1,134 @@
+
+/* static/css/stats.css */
+
+.page-header {
+    margin-bottom: 25px;
+}
+.page-header h2 {
+    font-size: 1.8em;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr; /* Cột trái rộng hơn cột phải */
+    gap: 25px;
+    margin-bottom: 25px;
+}
+
+.stat-card {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.07);
+    overflow: hidden; /* Để bo góc có tác dụng với card-header */
+}
+
+.full-width-card {
+    grid-column: 1 / -1; /* Chiếm toàn bộ chiều rộng grid */
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    padding: 15px 20px;
+    border-bottom: 1px solid #e9ecef;
+}
+.card-header h3 {
+    margin: 0;
+    font-size: 1.2em;
+    color: #34495e;
+}
+.card-header small {
+    color: #7f8c8d;
+}
+
+.card-body {
+    padding: 20px;
+}
+
+.placeholder-text {
+    text-align: center;
+    color: #999;
+    padding: 20px 0;
+}
+
+/* --- Styling cho Top Students --- */
+#topStudentsRanking ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+#topStudentsRanking li {
+    display: flex;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+#topStudentsRanking li:last-child {
+    border-bottom: none;
+}
+.rank-badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-weight: bold;
+    margin-right: 15px;
+    flex-shrink: 0;
+}
+.rank-1 { background-color: #ffd700; } /* Gold */
+.rank-2 { background-color: #c0c0c0; } /* Silver */
+.rank-3 { background-color: #cd7f32; } /* Bronze */
+.rank-other { background-color: #a9a9a9; } /* Gray */
+
+.student-name {
+    flex-grow: 1;
+    font-weight: 500;
+}
+.student-score {
+    font-size: 1.1em;
+    font-weight: bold;
+    color: #3498db;
+}
+
+/* --- Styling cho Subject Analysis --- */
+#subjectAnalysis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+.subject-item {
+    background-color: #fdfdff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+}
+.subject-item h4 {
+    font-size: 1.3em;
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+.subject-item p {
+    margin-bottom: 15px;
+    color: #555;
+}
+.subject-item .btn {
+    width: 100%;
+    text-align: center;
+}
+
+/* --- Styling cho AI Trends --- */
+#studentTrends h4 {
+    margin-top: 0;
+    font-size: 1.1em;
+    color: #2c3e50;
+}
+#aiAnalysisResult {
+    background-color: #eef5f9;
+    padding: 15px;
+    border-radius: 6px;
+    border-left: 4px solid #3498db;
+    color: #333;
+    font-style: italic;
+}
