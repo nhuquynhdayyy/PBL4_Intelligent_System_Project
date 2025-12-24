@@ -1,10 +1,11 @@
 import pandas as pd
 from sqlalchemy import create_engine
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import silhouette_score
 from sklearn.cluster import KMeans
 import joblib
 import os
-import json # Thêm thư viện json
+import json
 from dotenv import load_dotenv
 
 # --- PHẦN 1: KẾT NỐI DATABASE ---
@@ -17,7 +18,6 @@ DATABASE_URI = f'mysql+pymysql://{db_user}:{db_password}@{db_host}/{db_name}'
 engine = create_engine(DATABASE_URI)
 
 def prepare_data():
-    # ... (Hàm này giữ nguyên như cũ, không cần thay đổi)
     query = """
     SELECT
         s.id AS student_id, s.full_name,
@@ -42,20 +42,93 @@ def prepare_data():
     return df_cleaned
 
 def train_model(df):
-    # ... (Hàm này giữ nguyên như cũ, không cần thay đổi)
     features = df.drop(columns=['student_id', 'full_name'])
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
-    # Tăng n_clusters lên 4 để phù hợp với 4 nhóm dữ liệu giả
+    
+    training_history = []
+    ks = range(1, 11) # Bắt đầu từ 1 thay vì 2
+    
+    for k in ks:
+        km = KMeans(n_clusters=k, random_state=42, n_init='auto')
+        km.fit(features_scaled)
+        
+        inertia = km.inertia_
+        
+        # Xử lý riêng cho K=1 để tránh lỗi Silhouette
+        if k > 1:
+            sil = silhouette_score(features_scaled, km.labels_)
+        else:
+            sil = 0 # Hoặc để trống (None) cho K=1
+            
+        training_history.append({
+            'K': k,
+            'Inertia': inertia,
+            'Silhouette': sil
+        })
+
+    # --- XUẤT EXCEL CÓ BIỂU ĐỒ (DÙNG SCATTER ĐỂ CÓ SỐ 0) ---
+    history_df = pd.DataFrame(training_history)
+    file_name = "clustering_training_report.xlsx"
+    
+    writer = pd.ExcelWriter(file_name, engine='xlsxwriter')
+    history_df.to_excel(writer, sheet_name='Training_Log', index=False)
+    
+    workbook  = writer.book
+    worksheet = writer.sheets['Training_Log']
+
+    # 1. Vẽ biểu đồ Elbow (Sử dụng Scatter để trục X là số và bắt đầu từ 0)
+    chart_elbow = workbook.add_chart({'type': 'scatter', 'subtype': 'straight_with_markers'})
+    chart_elbow.add_series({
+        'name':       'Inertia Loss (Elbow Method)',
+        'categories': ['Training_Log', 1, 0, 10, 0], # Cột K (Trục X) - Index từ dòng 1 đến 10
+        'values':     ['Training_Log', 1, 1, 10, 1], # Cột Inertia (Trục Y)
+        'marker':     {'type': 'circle', 'size': 8, 'border': {'color': 'blue'}, 'fill': {'color': 'blue'}},
+        'line':       {'color': 'blue'},
+    })
+    chart_elbow.set_title({'name': 'Biểu đồ Elbow tìm K tối ưu'})
+    chart_elbow.set_x_axis({
+        'name': 'Số lượng cụm (K)',
+        'min': 0,           # BẮT ĐẦU TỪ 0
+        'max': 10,          # KẾT THÚC Ở 10
+        'major_unit': 1,    # Chia vạch mỗi 1 đơn vị
+    })
+    chart_elbow.set_y_axis({'name': 'Inertia (Loss)'})
+    
+    # 2. Vẽ biểu đồ Silhouette
+    chart_sil = workbook.add_chart({'type': 'scatter', 'subtype': 'straight_with_markers'})
+    chart_sil.add_series({
+        'name':       'Silhouette Score',
+        'categories': ['Training_Log', 1, 0, 10, 0], # Cột K (Trục X)
+        'values':     ['Training_Log', 1, 2, 10, 2], # Cột Silhouette (Trục Y)
+        'line':       {'color': 'red'},
+        'marker':     {'type': 'square', 'size': 8, 'border': {'color': 'red'}, 'fill': {'color': 'red'}},
+    })
+    chart_sil.set_title({'name': 'Biểu đồ Silhouette Score (Càng cao càng tốt)'})
+    chart_sil.set_x_axis({
+        'name': 'Số lượng cụm (K)',
+        'min': 0, 
+        'max': 10,
+        'major_unit': 1,
+    })
+    chart_sil.set_y_axis({'name': 'Silhouette Score'})
+
+    # Chèn biểu đồ vào sheet
+    worksheet.insert_chart('E2', chart_elbow)
+    worksheet.insert_chart('E18', chart_sil)
+
+    writer.close()
+    print(f"\n[SUCCESS] Đã xuất file {file_name} kèm biểu đồ tự động.")
+
+    # Huấn luyện model cuối cùng
     kmeans = KMeans(n_clusters=4, random_state=42, n_init='auto')
     kmeans.fit(features_scaled)
     df['cluster'] = kmeans.labels_
     joblib.dump(kmeans, 'student_cluster_model.pkl')
     joblib.dump(scaler, 'student_data_scaler.pkl')
-    print("\n[INFO] Đã lưu model và scaler vào file .pkl")
     return df
 
-# CẬP NHẬT LỚN: Hàm này giờ sẽ tạo ra bản đồ động
+# Hàm tạo ra bản đồ động
 def analyze_and_create_map(df_clustered):
     """
     Phân tích đặc điểm của các cụm và tạo ra một file map (JSON)

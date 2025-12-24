@@ -12,6 +12,7 @@ pbl4-env/
 .ipynb_checkpoints/
 
 # Dataset / model nặng
+action_data/
 datasets/
 *.pt
 *.h5

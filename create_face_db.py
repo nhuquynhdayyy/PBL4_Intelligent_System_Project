@@ -59,7 +59,7 @@ if __name__ == "__main__":
                 res = DeepFace.represent(
                     img_path=processed_img,
                     model_name=MODEL_NAME,
-                    detector_backend="skip",
+                    detector_backend="opencv",
                     enforce_detection=False
                 )
                 if res:

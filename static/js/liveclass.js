@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let studentStats = {}; // Lưu trữ số lần phát biểu: { 'student_code': count }
 
     // DOM Elements
+    const exportDataBtn = document.getElementById('export-data-btn');
     const startSessionBtn = document.getElementById('start-session-btn');
     const endSessionBtn = document.getElementById('end-session-btn');
     const confirmStartBtn = document.getElementById('confirm-start-session');
@@ -18,6 +19,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const sessionStatusEl = document.getElementById('session-status-badge');
     const connectionStatusEl = document.getElementById('connection-status');
 
+    // Giả sử bạn có hàm này trong shared.js
+    // Nếu không, bạn phải tự định nghĩa lại logic đóng/mở modal
     const openModal = window.openModal;
     const closeModal = window.closeModal;
 
@@ -93,6 +96,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.status === 'success') {
                 alert('Buổi học đã kết thúc.');
                 updateUIForInactiveSession();
+                exportDataBtn.disabled = false;
             } else {
                 alert('Lỗi: ' + data.message);
             }
@@ -167,6 +171,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateUIForInactiveSession() {
         startSessionBtn.style.display = 'inline-block';
         endSessionBtn.style.display = 'none';
+        exportDataBtn.disabled = true; // <-- VÔ HIỆU HÓA LẠI NÚT
         sessionStatusEl.textContent = 'Chưa bắt đầu';
         sessionStatusEl.className = 'session-status bg-secondary';
         studentListUl.innerHTML = '<li class="placeholder-text">Bắt đầu buổi học để xem danh sách</li>';
@@ -213,4 +218,35 @@ document.addEventListener('DOMContentLoaded', function() {
         const total = Object.values(studentStats).reduce((sum, count) => sum + count, 0);
         totalSpeechesCount.textContent = total;
     }
+    // THÊM ĐOẠN CODE MỚI NÀY
+exportDataBtn.addEventListener('click', () => {
+    if (!currentSession || Object.keys(studentStats).length === 0) {
+        alert("Không có dữ liệu để xuất!");
+        return;
+    }
+
+    // Chuẩn bị dữ liệu để gửi đi
+    const dataToExport = {
+        session_id: currentSession.id,
+        subject_name: currentSession.subjectName,
+        stats: studentStats,
+        students: studentList // Gửi cả danh sách SV để server có tên đầy đủ
+    };
+
+    // Tạo một form ẩn để gửi dữ liệu và tải file về
+    // Phương pháp này hiệu quả để trình duyệt tự động tải file
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/api/sessions/export'; // <-- Đây là API bạn cần tạo ở backend
+
+    const hiddenField = document.createElement('input');
+    hiddenField.type = 'hidden';
+    hiddenField.name = 'export_data';
+    hiddenField.value = JSON.stringify(dataToExport);
+
+    form.appendChild(hiddenField);
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+});
 });

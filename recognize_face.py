@@ -5,10 +5,8 @@ import numpy as np
 import pickle
 from scipy.spatial.distance import cosine
 
-# --- CẤU HÌNH ---
 MODEL_NAME = "Facenet512"
 DB_PATH = "face_db.pkl"
-THRESHOLD = 0.5 # Ngưỡng tin cậy để nhận diện
 
 print("[INFO] Loading Facenet model...")
 model = DeepFace.build_model(MODEL_NAME)
@@ -16,39 +14,32 @@ model = DeepFace.build_model(MODEL_NAME)
 try:
     with open(DB_PATH, "rb") as f:
         face_db = pickle.load(f)
-    print(f"[INFO] Đã tải {len(face_db)} ID từ database.")
 except:
     face_db = {}
-    print("[WARN] Chưa có database khuôn mặt.")
 
 def recognize_face(frame):
-    """
-    Hàm nhận diện: Dùng enforce_detection=False và so khớp Cosine.
-    Input: Ảnh đã được resize to (Zoom Face).
-    """
     try:
-        # 1. Lấy embedding (enforce_detection=False là chìa khóa để không bị lỗi No Face)
-        objs = DeepFace.represent(frame, model_name=MODEL_NAME, enforce_detection=False)
+        # Tăng cường độ sắc nét/tương phản nhẹ
+        frame = cv2.detailEnhance(frame, sigma_s=10, sigma_r=0.15) 
+        # TỐI ƯU: YOLO đã cắt mặt rồi, nên detector_backend để 'skip' để chạy cực nhanh
+        objs = DeepFace.represent(frame, model_name="Facenet512", enforce_detection=False, detector_backend='skip')
+        if not objs: return "Unknown", 1.0
         emb = objs[0]['embedding']
-    except Exception as e:
-        # print(f"DeepFace Error: {e}")
-        return "Unknown", 0.0
+    except:
+        return "Unknown", 1.0
 
     best_match = "Unknown"
-    best_conf = 0.0
+    min_dist = 1.0 
 
-    # 2. So sánh với DB
     for student_id, emb_list in face_db.items():
         for ref_emb in emb_list:
             dist = cosine(emb, ref_emb)
-            conf = max(0, 1 - dist / 0.4) # 0.4 là ngưỡng gốc của Facenet
-            
-            if conf > best_conf:
-                best_conf = conf
+            if dist < min_dist:
+                min_dist = dist
                 best_match = student_id
 
-    # 3. Lọc ngưỡng tin cậy
-    if best_conf < THRESHOLD:
-        return "Unknown", round(best_conf, 2)
-
-    return best_match, round(best_conf, 2)
+    # Với Facenet512 và Cosine:
+    # < 0.3: Rất giống (Chủ nhân)
+    # 0.3 - 0.4: Khá giống
+    # > 0.4: Người lạ
+    return best_match, min_dist
