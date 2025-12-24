@@ -1,113 +1,232 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // DOM elements
-    const topStudentsContainer = document.getElementById('topStudentsRanking');
-    const subjectAnalysisContainer = document.getElementById('subjectAnalysis');
-    const aiAnalysisResultContainer = document.getElementById('aiAnalysisResult');
+
+    // --- BIẾN TOÀN CỤC & THỂ HIỆN BIỂU ĐỒ ---
+    let charts = {
+        topStudents: null,
+        subjectDistribution: null,
+        studentTrend: null,
+        studentSubjectRadar: null
+    };
+
+    // --- LẤY CÁC PHẦN TỬ DOM ---
+    const kpiContainer = document.getElementById('kpi-container');
+    const fullRankingTableBody = document.getElementById('fullRankingTableBody');
+    const subjectDetailsList = document.getElementById('subjectDetailsList');
     const studentSelectDropdown = document.getElementById('student-select-for-analysis');
+    const studentDashboardContainer = document.getElementById('studentDashboardContainer');
+    const studentKpiContainer = document.getElementById('student-kpi-container');
+    const aiInsightBox = document.getElementById('aiInsightBox');
 
-    // ... (Hàm renderTopStudents và renderSubjectAnalysis giữ nguyên)
+    // --- HÀM HELPER & RENDER ---
 
-    function renderTopStudents(students) {
-        if (!students || students.length === 0) {
-            topStudentsContainer.innerHTML = '<p class="placeholder-text">Chưa có dữ liệu.</p>'; return;
+    /**
+     * Hàm helper để gọi API an toàn.
+     */
+    async function apiCall(endpoint) {
+        try {
+            const response = await fetch(endpoint);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            console.error(`Lỗi khi gọi API đến ${endpoint}:`, error);
+            return null;
         }
-        const rankColors = ['rank-1', 'rank-2', 'rank-3'];
-        topStudentsContainer.innerHTML = `<ol>${students.map((student, index) => `
-            <li>
-                <span class="rank-badge ${rankColors[index] || 'rank-other'}">${index + 1}</span>
-                <span class="student-name">${student.name}</span>
-                <span class="student-score">${student.speeches}</span>
-            </li>`).join('')}</ol>`;
     }
 
-    function renderSubjectAnalysis(subjects) {
-        if (!subjects || subjects.length === 0) {
-            subjectAnalysisContainer.innerHTML = '<p class="placeholder-text">Chưa có dữ liệu.</p>'; return;
+    /**
+     * Hủy một biểu đồ nếu nó đã tồn tại.
+     * @param {string} chartName - Tên của biểu đồ trong đối tượng 'charts'.
+     */
+    function destroyChart(chartName) {
+        if (charts[chartName]) {
+            charts[chartName].destroy();
+            charts[chartName] = null;
         }
-        subjectAnalysisContainer.innerHTML = subjects.map(subject => {
-            const topStudentText = subject.top_student_name === 'Chưa có' ? 'Chưa có' : `${subject.top_student_name} (${subject.top_student_speeches} lần)`;
-            return `
-            <div class="subject-item">
-                <h4>${subject.icon || '📚'} ${subject.name}</h4>
-                <p><strong>Buổi học:</strong> ${subject.session_count}</p>
-                <p><strong>Tích cực nhất:</strong> ${topStudentText}</p>
-            </div>`;
-        }).join('');
     }
-
-
-    // --- THÊM MỚI: CÁC HÀM CHO PHÂN TÍCH AI ---
     
-    // Hàm tải danh sách học sinh vào dropdown
+    // -- RENDER CÁC THÀNH PHẦN CHUNG --
+
+    function renderKpiCards(kpis) {
+        kpiContainer.innerHTML = `
+            <div class="kpi-card"><div class="value">${kpis.total_sessions || 0}</div><div class="label">Buổi học đã diễn ra</div></div>
+            <div class="kpi-card"><div class="value">${kpis.total_speeches || 0}</div><div class="label">Lượt phát biểu</div></div>
+            <div class="kpi-card"><div class="value">${kpis.total_students || 0}</div><div class="label">Học sinh tham gia</div></div>
+            <div class="kpi-card"><div class="value highlight">${kpis.most_active_student || 'N/A'}</div><div class="label">Tích cực nhất</div></div>
+        `;
+    }
+
+    function renderTopStudentsChart(students) {
+        const ctx = document.getElementById('topStudentsChart').getContext('2d');
+        destroyChart('topStudents');
+        charts.topStudents = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: students.slice(0, 5).map(s => s.name),
+                datasets: [{
+                    label: 'Số lần phát biểu',
+                    data: students.slice(0, 5).map(s => s.speeches),
+                    backgroundColor: '#007bff',
+                    borderRadius: 5
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+    }
+
+    function renderFullRankingTable(students) {
+        fullRankingTableBody.innerHTML = students.map((s, index) => `
+            <tr>
+                <td><span class="rank-badge rank-${index + 1}">${index + 1}</span></td>
+                <td>${s.name}</td>
+                <td>${s.speeches}</td>
+            </tr>
+        `).join('');
+    }
+    
+    function renderSubjectDistributionChart(subjects) {
+        const ctx = document.getElementById('subjectDistributionChart').getContext('2d');
+        destroyChart('subjectDistribution');
+        charts.subjectDistribution = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: subjects.map(s => s.name),
+                datasets: [{
+                    data: subjects.map(s => s.total_speeches),
+                    backgroundColor: ['#007bff', '#28a745', '#ffc107', '#dc3545', '#6f42c1'],
+                    hoverOffset: 4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+        });
+    }
+
+    function renderSubjectDetails(subjects) {
+        subjectDetailsList.innerHTML = subjects.map(s => `
+            <div class="list-item">
+                <div class="item-main">
+                    <span class="item-icon">${s.icon || '📚'}</span>
+                    <span class="item-name">${s.name}</span>
+                </div>
+                <div class="item-details">
+                    <span>Tích cực nhất: <strong>${s.top_student_name || 'N/A'}</strong></span>
+                    <span>(${s.top_student_speeches || 0} lần)</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // -- RENDER CÁC THÀNH PHẦN DASHBOARD CÁ NHÂN --
+
+    function renderStudentKpis(data) {
+        studentKpiContainer.innerHTML = `
+            <div class="kpi-card nested"><div class="value">${data.rank}</div><div class="label">Thứ hạng</div></div>
+            <div class="kpi-card nested"><div class="value">${data.total_speeches}</div><div class="label">Tổng phát biểu</div></div>
+            <div class="kpi-card nested"><div class="value highlight">${data.best_subject || 'N/A'}</div><div class="label">Môn học thế mạnh</div></div>
+        `;
+    }
+
+    function renderStudentTrendChart(trend) {
+        const ctx = document.getElementById('studentTrendChart').getContext('2d');
+        destroyChart('studentTrend');
+        charts.studentTrend = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: trend.labels,
+                datasets: [{
+                    label: 'Số lần phát biểu',
+                    data: trend.data,
+                    borderColor: '#28a745',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+    }
+
+    function renderStudentSubjectRadarChart(radar) {
+        const ctx = document.getElementById('studentSubjectRadarChart').getContext('2d');
+        destroyChart('studentSubjectRadar');
+        charts.studentSubjectRadar = new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: radar.labels,
+                datasets: [{
+                    label: 'Mức độ tích cực',
+                    data: radar.data,
+                    backgroundColor: 'rgba(255, 193, 7, 0.2)',
+                    borderColor: 'rgba(255, 193, 7, 1)',
+                    pointBackgroundColor: 'rgba(255, 193, 7, 1)',
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { r: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    function renderAiInsight(insight) {
+        aiInsightBox.innerHTML = `
+            <h4><i class="fas fa-lightbulb text-warning"></i> AI Insight</h4>
+            <p><strong>Xu hướng chung:</strong> <span class="text-primary">${insight.tendency}</span></p>
+            <p class="small text-muted"><strong>Phân tích:</strong> ${insight.reason}</p>
+        `;
+    }
+
+    // --- CÁC HÀM ĐIỀU KHIỂN CHÍNH ---
+
     async function populateStudentDropdown() {
+        studentSelectDropdown.disabled = true;
         const students = await apiCall('/api/students');
         if (students && students.length > 0) {
-            studentSelectDropdown.innerHTML = '<option value="">-- Chọn học sinh --</option>';
-            students.forEach(student => {
-                const option = document.createElement('option');
-                option.value = student.id;
-                option.textContent = student.full_name;
-                studentSelectDropdown.appendChild(option);
-            });
+            studentSelectDropdown.innerHTML = '<option value="">-- Chọn học sinh --</option>' + 
+                students.map(s => `<option value="${s.id}">${s.full_name}</option>`).join('');
         } else {
-            studentSelectDropdown.innerHTML = '<option value="">Không có học sinh nào</option>';
+            studentSelectDropdown.innerHTML = '<option value="">Không có dữ liệu</option>';
         }
+        studentSelectDropdown.disabled = false;
     }
 
-    // Gán sự kiện 'change' cho dropdown
-    studentSelectDropdown.addEventListener('change', async function() {
+    async function handleStudentSelection() {
         const studentId = this.value;
         if (!studentId) {
-            aiAnalysisResultContainer.innerHTML = '<p class="placeholder-text">Vui lòng chọn một học sinh để bắt đầu phân tích...</p>';
+            studentDashboardContainer.classList.add('hidden');
             return;
         }
 
-        // Hiển thị trạng thái đang tải
-        aiAnalysisResultContainer.innerHTML = `
-            <div class="text-center p-3">
-                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-                <span class="ms-2">AI đang phân tích...</span>
-            </div>`;
+        studentDashboardContainer.classList.remove('hidden');
+        aiInsightBox.innerHTML = `<div class="loading-spinner"></div><p>AI đang phân tích...</p>`;
         
-        // Gọi API phân tích
-        const result = await apiCall(`/api/students/${studentId}/analysis`);
-
-        // Hiển thị kết quả
-        if (result) {
-            aiAnalysisResultContainer.innerHTML = `
-                <div class="alert alert-info mt-2">
-                    <h5 class="alert-heading">Kết luận: ${result.tendency}</h5>
-                    <hr>
-                    <p class="mb-0 small"><strong>Dữ liệu:</strong> ${result.reason}</p>
-                </div>
-            `;
-        } else {
-            aiAnalysisResultContainer.innerHTML = `
-                <div class="alert alert-danger mt-2">
-                    <strong>Lỗi:</strong> Không thể thực hiện phân tích.
-                </div>
-            `;
-        }
-    });
-
-    // Hàm chính để tải tất cả dữ liệu thống kê
-    async function loadStats() {
-        // Tải dữ liệu cho dropdown trước
-        await populateStudentDropdown();
-
-        // Tải dữ liệu thống kê chung
-        const data = await apiCall('/api/statistics');
+        const data = await apiCall(`/api/students/${studentId}/analysis`);
         if (data) {
-            renderTopStudents(data.top_students);
-            renderSubjectAnalysis(data.subject_analysis);
-            // Không render AI analysis chung nữa, để người dùng tự chọn
+            renderStudentKpis(data.kpis);
+            renderStudentTrendChart(data.trend);
+            renderStudentSubjectRadarChart(data.radar);
+            renderAiInsight(data.insight);
         } else {
-            // Xử lý lỗi nếu không tải được
-            topStudentsContainer.innerHTML = '<p class="placeholder-text text-danger">Lỗi tải dữ liệu.</p>';
-            subjectAnalysisContainer.innerHTML = '<p class="placeholder-text text-danger">Lỗi tải dữ liệu.</p>';
+            studentDashboardContainer.innerHTML = '<p class="text-danger">Lỗi tải dữ liệu phân tích cho học sinh này.</p>';
         }
     }
 
-    // Chạy hàm khi trang được tải
-    loadStats();
+    async function initializePage() {
+        populateStudentDropdown();
+        const data = await apiCall('/api/statistics');
+        if (data) {
+            renderKpiCards(data.kpis);
+            renderTopStudentsChart(data.all_students_ranking);
+            renderFullRankingTable(data.all_students_ranking);
+            renderSubjectDistributionChart(data.subject_analysis);
+            renderSubjectDetails(data.subject_analysis);
+        } else {
+            document.body.innerHTML = '<p class="text-danger text-center mt-5">Không thể tải dữ liệu dashboard. Vui lòng kiểm tra kết nối và API.</p>';
+        }
+    }
+
+    // --- GÁN SỰ KIỆN VÀ KHỞI CHẠY ---
+    studentSelectDropdown.addEventListener('change', handleStudentSelection);
+    initializePage();
 });
