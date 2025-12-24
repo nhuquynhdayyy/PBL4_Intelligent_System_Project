@@ -1,7 +1,7 @@
 # =============================================================
 # === 1. KHAI BÁO THƯ VIỆN (IMPORTS) ===
 # =============================================================
-from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, flash, send_file
 from flask_socketio import SocketIO, emit
 from flask_migrate import Migrate
 from database import db, Class, Student, Subject, Session, SpeechLog, Grade
@@ -21,6 +21,9 @@ from database import User # Đảm bảo đã import User
 from flask_login import LoginManager, login_user, logout_user, current_user, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
+from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
+from openpyxl import Workbook
+
 # =============================================================
 # === 2. CẤU HÌNH HỆ THỐNG ===
 # =============================================================
@@ -63,6 +66,49 @@ def load_user(user_id):
     # Flask-Login sẽ dùng hàm này để lấy thông tin user từ ID lưu trong session
     return db.session.get(User, int(user_id))
 
+# Cấu hình hệ số điểm theo quy định giáo viên
+HE_SO = {
+    'Điểm miệng': 1,
+    '15 phút': 1,
+    '1 tiết': 2,
+    'Học kỳ': 3
+}
+def generate_ai_comment(subject_name, avg_score, speech_count, class_avg_speech):
+    """
+    AI Phân tích mối tương quan giữa Điểm số và Dữ liệu Face ID (Phát biểu)
+    """
+    # 1. Xác định mức độ điểm số
+    is_good_grade = avg_score >= 8.0
+    is_bad_grade = avg_score < 5.0
+    
+    # 2. Xác định mức độ năng nổ (Dựa trên trung bình lớp)
+    # Giả sử phát biểu > trung bình lớp 20% là năng nổ
+    is_active = speech_count > (class_avg_speech * 1.2)
+    is_passive = speech_count < (class_avg_speech * 0.6)
+
+    # 3. Phân tích tương quan (Matrix Analysis)
+    
+    # NHÓM 1: CÔNG TỬ BẠC LIÊU (Giỏi và Năng nổ)
+    if is_good_grade and is_active:
+        return f"Phong độ xuất sắc. AI ghi nhận sự tương quan hoàn hảo giữa tư duy và thái độ xây dựng bài. Tiếp tục phát huy vai trò dẫn dắt lớp."
+
+    # NHÓM 2: THIÊN TÀI TRẦM LẶNG (Giỏi nhưng thụ động)
+    if is_good_grade and is_passive:
+        return f"Tiếp thu kiến thức rất tốt nhưng dữ liệu Face ID cho thấy em khá trầm tính. AI khuyến khích em chia sẻ ý kiến nhiều hơn để rèn luyện kỹ năng mềm."
+
+    # NHÓM 3: HỌC TÀI THI PHẬN (Điểm thấp nhưng cực kỳ năng nổ)
+    if not is_good_grade and is_active:
+        return f"AI đánh giá cao sự nỗ lực vượt bậc qua {speech_count} lượt phát biểu. Tuy nhiên kết quả thi cử chưa tương xứng. Cần rà soát lại phương pháp làm bài hoặc hổng kiến thức căn bản."
+
+    # NHÓM 4: CẦN CHÚ Ý ĐẶC BIỆT (Điểm thấp và thụ động)
+    if is_bad_grade and is_passive:
+        return f"Cảnh báo: Dữ liệu cho thấy sự thiếu tập trung cả về kiến thức lẫn tương tác. Cần GV bộ môn và phụ huynh sát sao hơn để tìm nguyên nhân mất gốc."
+
+    # NHÓM TRUNG BÌNH (Mặc định)
+    if is_active:
+        return f"Thái độ học tập tích cực ({speech_count} lần phát biểu). Cần tập trung hơn vào các phần kiến thức khó để nâng mức điểm {avg_score} lên cao hơn."
+    
+    return f"Hoàn thành mức độ cơ bản của môn học. Cần chủ động hơn trong các tiết học để AI ghi nhận sự tiến bộ về thái độ."
 # =============================================================
 # === 3. ROUTES GIAO DIỆN (VIEW) ===
 # =============================================================
@@ -376,6 +422,92 @@ def get_grades(student_id):
         'subject_id': g.subject_id, 
         'subject_name': g.subject.name
     } for g in grades])
+    
+@app.route('/api/students/<int:student_id>/export_smart_report')
+@login_required
+def export_smart_report(student_id):
+    student = db.session.get(Student, student_id)
+    if not student: return "Học sinh không tồn tại", 404
+
+    # Tính trung bình phát biểu của cả lớp để AI lấy làm mốc so sánh
+    total_speeches_class = SpeechLog.query.count()
+    total_students_class = Student.query.count()
+    class_avg_speech = total_speeches_class / (total_students_class or 1)
+
+    subjects = Subject.query.filter_by(class_id=student.class_id).all()
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "AI Report Card"
+
+    # Style Header chuyên nghiệp
+    fill_blue = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    font_white = Font(bold=True, color="FFFFFF")
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), 
+    top=Side(style='thin'), bottom=Side(style='thin'))
+
+    # Vẽ Tiêu đề
+    ws.merge_cells('A1:H1')
+    ws['A1'] = f"BÁO CÁO HỌC TẬP THÔNG MINH (DỰA TRÊN AI & NHẬN DIỆN KHUÔN MẶT)"
+    ws['A1'].font = Font(size=14, bold=True, color="1F4E78")
+    ws['A1'].alignment = Alignment(horizontal='center')
+
+    ws['A2'] = f"Học sinh: {student.full_name}"
+    ws['A3'] = f"Mã FaceID: {student.student_code}"
+    ws['E2'] = f"Lớp: {student.class_info.name}"
+    ws['E3'] = f"Trung bình phát biểu lớp: {round(class_avg_speech, 1)} lần/kỳ"
+
+    # Tạo Header bảng
+    headers = ["STT", "Môn Học", "Điểm TP", "Thi HK", "TB Môn", "Hệ số", "Phát biểu (FaceID)", "Phân tích từ AI"]
+    ws.append([])
+    ws.append(headers)
+    for cell in ws[5]:
+        cell.fill = fill_blue
+        cell.font = font_white
+        cell.alignment = Alignment(horizontal='center')
+
+    # Đổ dữ liệu
+    row_idx = 6
+    for i, sub in enumerate(subjects):
+        grades = Grade.query.filter_by(student_id=student_id, subject_id=sub.id).all()
+        # Lấy số lần phát biểu từ nhật ký Face ID
+        speech_count = SpeechLog.query.join(Session).filter(
+            SpeechLog.student_id == student_id, Session.subject_id == sub.id
+        ).count()
+
+        # Tính toán điểm
+        tu_so, mau_so = 0, 0
+        tp_list = []
+        hk_score = ""
+        for g in grades:
+            w = HE_SO.get(g.grade_type, 1)
+            tu_so += g.score * w
+            mau_so += w
+            if g.grade_type == 'Học kỳ': hk_score = g.score
+            else: tp_list.append(str(g.score))
+
+        avg_sub = round(tu_so / mau_so, 1) if mau_so > 0 else 0
+        ai_msg = generate_ai_comment(sub.name, avg_sub, speech_count, class_avg_speech)
+
+        ws.append([i+1, sub.name, ", ".join(tp_list), hk_score, avg_sub, "Theo quy định", f"{speech_count} lần", ai_msg])
+        
+        # Kẻ bảng
+        for cell in ws[row_idx]:
+            cell.border = thin_border
+            cell.alignment = Alignment(wrap_text=True, vertical='center')
+        row_idx += 1
+
+    # Điều chỉnh độ rộng cột
+    ws.column_dimensions['B'].width = 15
+    ws.column_dimensions['G'].width = 15
+    ws.column_dimensions['H'].width = 60 # Cột nhận xét AI cần rộng
+
+    # Xuất file
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    as_attachment=True, download_name=f"BaoCaoAI_{student.student_code}.xlsx")
 
 @app.route('/api/grades', methods=['POST'])
 def add_grade():
