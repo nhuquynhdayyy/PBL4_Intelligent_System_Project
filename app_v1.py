@@ -19,7 +19,7 @@ from sklearn.preprocessing import StandardScaler
 load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'secret')
-
+ 
 # Cấu hình DB
 db_user = os.getenv('DB_USER', 'root')
 db_password = os.getenv('DB_PASSWORD', '')

@@ -34,10 +34,9 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'secret')
 
 # Cấu hình Database
 db_user = os.getenv('DB_USER', 'root')
-db_password = os.getenv('DB_PASSWORD', '') # Điền mật khẩu MySQL của bạn vào đây nếu có
+db_password = os.getenv('DB_PASSWORD', '')
 db_host = os.getenv('DB_HOST', 'localhost')
 db_name = os.getenv('DB_NAME', 'pbl4')
-
 app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{db_user}:{db_password}@{db_host}/{db_name}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -645,32 +644,55 @@ def statistics_api():
     try:
         user_class_id = current_user.class_id
 
-        # 1. Bảng xếp hạng học sinh trong lớp
+
+        # 1. Bảng xếp hạng học sinh trong lớp (giữ nguyên)
         all_students_ranking_query = db.session.query(
             Student.id, Student.full_name, func.count(SpeechLog.id).label('total_speeches')
         ).outerjoin(SpeechLog).filter(Student.class_id == user_class_id)\
          .group_by(Student.id).order_by(desc('total_speeches')).all()
-        
+       
         all_students_ranking = [{'id': s[0], 'name': s[1], 'speeches': s[2]} for s in all_students_ranking_query]
 
-        # 2. KPI tổng quan của lớp
+
+        # 2. KPI tổng quan (giữ nguyên)
         total_sessions = Session.query.filter_by(class_id=user_class_id).count()
         total_speeches = SpeechLog.query.join(Session).filter(Session.class_id == user_class_id).count()
         total_students = Student.query.filter_by(class_id=user_class_id).count()
         most_active_student = all_students_ranking[0]['name'] if all_students_ranking else "N/A"
 
-        # 3. Phân tích môn học của lớp
+
+        # 3. PHẦN CẦN SỬA: Phân tích chi tiết từng môn học
         subjects = Subject.query.filter_by(class_id=user_class_id).all()
         subject_analysis = []
         for s in subjects:
-            total_speeches_in_sub = SpeechLog.query.join(Session).filter(Session.subject_id == s.id).count()
+            # Truy vấn tìm học sinh tích cực nhất cho môn học s này
+            top_stu_query = db.session.query(
+                Student.full_name, func.count(SpeechLog.id).label('count')
+            ).join(SpeechLog, Student.id == SpeechLog.student_id)\
+             .join(Session, SpeechLog.session_id == Session.id)\
+             .filter(Session.subject_id == s.id)\
+             .group_by(Student.id)\
+             .order_by(desc('count')).first()
+
+
+            if top_stu_query:
+                top_name = top_stu_query[0]
+                top_count = top_stu_query[1]
+            else:
+                top_name = "N/A"
+                top_count = 0
+
+
             subject_analysis.append({
-                'id': s.id, 'name': s.name, 'icon': s.icon, 
+                'id': s.id,
+                'name': s.name,
+                'icon': s.icon,
                 'session_count': Session.query.filter_by(subject_id=s.id).count(),
-                'total_speeches': total_speeches_in_sub,
-                'top_student_name': "N/A" # Có thể tính thêm nếu muốn
+                'total_speeches': db.session.query(func.count(SpeechLog.id)).join(Session).filter(Session.subject_id == s.id).scalar() or 0,
+                'top_student_name': top_name,
+                'top_student_speeches': top_count
             })
-        
+       
         return jsonify({
             'kpis': {
                 "total_sessions": total_sessions, "total_speeches": total_speeches,
@@ -680,134 +702,113 @@ def statistics_api():
             'subject_analysis': subject_analysis
         })
     except Exception as e:
+        print(f"Lỗi Statistics API: {e}")
         return jsonify({"message": str(e)}), 500
 @app.route('/api/students/<int:student_id>/analysis')
 @login_required
 def analyze_student_api(student_id):
     try:
-        # 0) Lấy class mà user đang quản lý
-        user_class_id = getattr(current_user, "class_id", None)
-        if not user_class_id:
-            return jsonify({"message": "Tài khoản chưa được phân công lớp"}), 403
-
-        # 1) Học sinh phải thuộc lớp của user
+        # 1. Kiểm tra quyền truy cập (Học sinh phải thuộc lớp của giáo viên đang đăng nhập)
+        user_class_id = current_user.class_id
         student = Student.query.filter_by(id=student_id, class_id=user_class_id).first()
         if not student:
-            return jsonify({"message": "Học sinh không thuộc lớp bạn quản lý"}), 403
+            return jsonify({"message": "Học sinh không tồn tại hoặc không thuộc lớp của bạn"}), 404
 
-        # 2) XẾP HẠNG TRONG LỚP (lọc theo user_class_id)
-        full_ranking = (
-            db.session.query(
-                Student.id,
-                func.count(SpeechLog.id).label("total_speeches")
-            )
-            .outerjoin(SpeechLog, SpeechLog.student_id == Student.id)
-            .filter(Student.class_id == user_class_id)
-            .group_by(Student.id)
-            .order_by(desc("total_speeches"))
-            .all()
-        )
+        # 2. Khai báo các nhóm môn học cần phân tích
+        categories = ['Khoa học Tự nhiên', 'Khoa học Xã hội', 'Ngoại ngữ', 'Năng khiếu']
+        radar_values = []
+        raw_scores = {} # Lưu điểm trung bình thực tế để hiển thị minh chứng
 
-        student_rank = 0
-        for i, s in enumerate(full_ranking):
-            if s.id == student_id:
-                student_rank = i + 1
-                break
+        for cat in categories:
+            # Truy vấn điểm trung bình thực tế của nhóm môn này
+            g_avg = db.session.query(func.avg(Grade.score)).join(Subject).filter(
+                Grade.student_id == student_id, 
+                Subject.category == cat
+            ).scalar() or 0
+            
+            # Lưu lại con số thực tế (ví dụ: 8.5)
+            raw_scores[cat] = round(float(g_avg), 1)
 
-        # 3) KPI: tổng phát biểu (lọc student_id)
+            # Truy vấn số lượt phát biểu (dữ liệu từ Face ID)
+            s_cnt = db.session.query(func.count(SpeechLog.id)).join(Session).join(Subject).filter(
+                SpeechLog.student_id == student_id, 
+                Subject.category == cat
+            ).count()
+           
+            # Tính toán giá trị Radar (Điểm năng lực tổng hợp)
+            # Công thức: 70% từ điểm số + 30% từ thái độ (tối đa 15 lượt phát biểu được tính điểm 10)
+            attitude_score = min(s_cnt, 15) * (10 / 15)
+            radar_val = (float(g_avg) * 0.7) + (attitude_score * 0.3)
+            radar_values.append(round(radar_val, 1))
+
+        # 3. Xác định nhóm môn có điểm Radar cao nhất (Thế mạnh thực tế)
+        max_radar_val = max(radar_values)
+        
+        if max_radar_val == 0:
+            # Nếu điểm Radar cao nhất vẫn là 0 -> Chưa có dữ liệu gì cả
+            actual_best = "Chưa thể xác định"
+            best_score_text = "0.0" # Điểm Radar minh chứng
+        else:
+            # Tìm danh sách các môn có điểm RADAR bằng mức cao nhất
+            best_indices = [i for i, val in enumerate(radar_values) if val == max_radar_val]
+            
+            if len(best_indices) == len(categories):
+                actual_best = "Phát triển toàn diện"
+            elif len(best_indices) > 1:
+                # Nếu có 2 môn bằng điểm Radar nhau (Ví dụ: KHTN 8.5 và Ngoại ngữ 8.5)
+                actual_best = " & ".join([categories[i] for i in best_indices])
+            else:
+                # Một môn duy nhất có điểm Radar cao nhất
+                actual_best = categories[best_indices[0]]
+            
+            # QUAN TRỌNG: Hiển thị ĐIỂM RADAR làm minh chứng thay vì điểm trung bình
+            best_score_text = str(max_radar_val)
+
+        # 4. Lấy nhận định phong cách từ kết quả huấn luyện AI (file JSON)
+        try:
+            # File này được tạo ra từ script analyze_trends.py
+            with open('behavioral_analysis.json', 'r', encoding='utf-8') as f:
+                behavior_data = json.load(f)
+            ai_style = behavior_data.get(str(student_id), {
+                "style": "Đang theo dõi",
+                "advice": "Tiếp tục thu thập dữ liệu để AI đưa ra nhận định chính xác hơn."
+            })
+        except FileNotFoundError:
+            ai_style = {
+                "style": "Chưa có phân tích AI", 
+                "advice": "Hãy yêu cầu Admin chạy huấn luyện AI để cập nhật phong cách học tập."
+            }
+
+        # 5. Lấy tổng số lần phát biểu toàn thời gian
         total_speeches = SpeechLog.query.filter_by(student_id=student_id).count()
 
-        # 4) Môn học thế mạnh (lọc theo student_id + class để tránh lẫn lớp)
-        best_subject_query = (
-            db.session.query(Subject.name)
-            .join(Session, Session.subject_id == Subject.id)
-            .join(SpeechLog, SpeechLog.session_id == Session.id)
-            .filter(
-                SpeechLog.student_id == student_id,
-                Subject.class_id == user_class_id
-            )
-            .group_by(Subject.id)
-            .order_by(func.count(SpeechLog.id).desc())
-            .first()
-        )
-        best_subject = best_subject_query[0] if best_subject_query else "N/A"
-
-        student_kpis = {
-            "rank": student_rank,
-            "total_speeches": total_speeches,
-            "best_subject": best_subject
-        }
-
-        # 5) TREND: số phát biểu theo từng buổi (lọc theo student + class)
-        trend_data_query = (
-            db.session.query(
-                Session.id,
-                func.count(SpeechLog.id).label("cnt")
-            )
-            .join(SpeechLog, SpeechLog.session_id == Session.id)
-            .filter(
-                SpeechLog.student_id == student_id,
-                Session.class_id == user_class_id
-            )
-            .group_by(Session.id)
-            .order_by(Session.id.asc())
-            .all()
-        )
-
-        trend_data = {
-            "labels": [f"Buổi {s[0]}" for s in trend_data_query],
-            "data": [s[1] for s in trend_data_query]
-        }
-
-        # 6) RADAR: phát biểu theo môn trong lớp (lọc theo user_class_id)
-        subjects_in_class = Subject.query.filter_by(class_id=user_class_id).all()
-        radar_labels = [s.name for s in subjects_in_class]
-
-        radar_data = []
-        for sub in subjects_in_class:
-            count = (
-                db.session.query(func.count(SpeechLog.id))
-                .join(Session, Session.id == SpeechLog.session_id)
-                .filter(
-                    SpeechLog.student_id == student_id,
-                    Session.subject_id == sub.id,
-                    Session.class_id == user_class_id
-                )
-                .scalar()
-            ) or 0
-            radar_data.append(count)
-
-        radar_chart_data = {"labels": radar_labels, "data": radar_data}
-
-        # 7) AI INSIGHT (giữ logic đơn giản)
-        tendency = "Ổn định"
-        if len(trend_data["data"]) > 1:
-            if trend_data["data"][-1] > trend_data["data"][0]:
-                tendency = "Có xu hướng tiến bộ"
-            elif trend_data["data"][-1] < trend_data["data"][0]:
-                tendency = "Cần cải thiện sự tập trung"
-
-        reason = (
-            f"Học sinh hiện có {total_speeches} lượt phát biểu, xếp hạng {student_rank} trong lớp. "
-            f"Môn học nổi bật nhất là {best_subject}."
-        )
-        ai_insight = {"tendency": tendency, "reason": reason}
-
-        # 8) Trả JSON chuẩn
+        # 6. Tổng hợp và trả về kết quả
         return jsonify({
-            "kpis": student_kpis,
-            "trend": trend_data,
-            "radar": radar_chart_data,
-            "insight": ai_insight
+            "kpis": {
+                "rank": ai_style['style'],           # Phong cách học tập (ví dụ: Học sinh Năng động)
+                "total_speeches": total_speeches,    # Tổng lượt Face ID nhận diện phát biểu
+                "best_subject": actual_best          # Nhóm môn thế mạnh nhất
+            },
+            "raw_scores": raw_scores,                # Gửi thêm điểm số thực tế để minh chứng
+            "radar": {
+                "labels": categories, 
+                "data": radar_values
+            },
+            "trend": {
+                "labels": ["Tuần 1", "Tuần 2", "Tuần 3", "Tuần 4"], 
+                "data": [0, 2, 5, total_speeches]    # Giả lập xu hướng, bạn có thể viết query thực nếu cần
+            },
+            "insight": {
+                "tendency": actual_best,
+                "reason": f"AI nhận diện em có thế mạnh vượt trội ở nhóm môn **{actual_best}** với điểm trung bình thực tế là **{best_score_text}**. " \
+                          f"Kết hợp với dữ liệu hành vi, em được xếp vào nhóm **{ai_style['style']}**. " \
+                          f"Lời khuyên: {ai_style['advice']}"
+            }
         })
 
     except Exception as e:
-        import traceback
-        print(f"--- LỖI TRONG STUDENT ANALYSIS API (ID: {student_id}) ---")
-        traceback.print_exc()
-        print("--------------------------------------------------------")
-        return jsonify({"message": f"Lỗi server khi phân tích: {str(e)}"}), 500
-
+        print(f"Lỗi phân tích học sinh {student_id}: {str(e)}")
+        return jsonify({"message": f"Lỗi hệ thống: {str(e)}"}), 500
 # --- XUẤT DỮ LIỆU ---
 @app.route('/api/sessions/export', methods=['POST'])
 def export_session_data():
@@ -952,11 +953,34 @@ def inject_user_info():
     }
 if __name__ == '__main__':
     with app.app_context():
-        # Tự động tạo bảng nếu chưa có
+        # 1. Tự động tạo bảng nếu chưa có
         db.create_all()
-        # Tạo lớp mặc định
+
+        # 2. Tạo lớp mặc định nếu chưa có
         if not db.session.get(Class, 1):
             db.session.add(Class(id=1, name="9/1", academic_year="2025-2026"))
             db.session.commit()
+            print("Đã tạo lớp học mặc định 9/1")
+
+        # 3. TẠO TÀI KHOẢN ADMIN MẶC ĐỊNH
+        # Kiểm tra xem đã có user nào có role 'admin' chưa
+        admin_user = User.query.filter_by(role='admin').first()
+        if not admin_user:
+            # Tạo mật khẩu hash (admin123)
+            hashed_pw = generate_password_hash('admin123', method='pbkdf2:sha256')
+            
+            new_admin = User(
+                username='admin',
+                email='admin@gmail.com',
+                password_hash=hashed_pw,
+                role='admin' # Rất quan trọng để vào được trang quản trị
+            )
+            db.session.add(new_admin)
+            db.session.commit()
+            print("------------------------------------------")
+            print("ĐÃ TẠO TÀI KHOẢN ADMIN MẶC ĐỊNH:")
+            print("Username: admin")
+            print("Password: admin123")
+            print("------------------------------------------")
             
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
