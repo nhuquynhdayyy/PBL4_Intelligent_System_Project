@@ -16,6 +16,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const studentDashboardContainer = document.getElementById('studentDashboardContainer');
     const studentKpiContainer = document.getElementById('student-kpi-container');
     const aiInsightBox = document.getElementById('aiInsightBox');
+    
+    // Phần tử mới để hiển thị điểm thực tế
+    const rawScoresRow = document.getElementById('student-raw-scores-row');
 
     // --- HÀM HELPER & RENDER ---
 
@@ -35,7 +38,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     /**
      * Hủy một biểu đồ nếu nó đã tồn tại.
-     * @param {string} chartName - Tên của biểu đồ trong đối tượng 'charts'.
      */
     function destroyChart(chartName) {
         if (charts[chartName]) {
@@ -119,10 +121,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function renderStudentKpis(data) {
         studentKpiContainer.innerHTML = `
-            <div class="kpi-card nested"><div class="value">${data.rank}</div><div class="label">Thứ hạng</div></div>
+            <div class="kpi-card nested"><div class="value">${data.rank}</div><div class="label">Phong cách học tập</div></div>
             <div class="kpi-card nested"><div class="value">${data.total_speeches}</div><div class="label">Tổng phát biểu</div></div>
             <div class="kpi-card nested"><div class="value highlight">${data.best_subject || 'N/A'}</div><div class="label">Môn học thế mạnh</div></div>
         `;
+    }
+
+    /**
+     * THÊM MỚI: Render bảng điểm số thực tế (Raw Scores)
+     */
+    function renderRawScores(rawScores) {
+        if (!rawScoresRow) return;
+        
+        rawScoresRow.innerHTML = Object.entries(rawScores).map(([category, score]) => {
+            // Xác định màu sắc dựa trên điểm số
+            let colorClass = 'text-primary';
+            if (score >= 8.0) colorClass = 'text-success';
+            else if (score < 5.0) colorClass = 'text-danger';
+
+            return `
+                <div class="col-md-3 col-6 mb-3 border-end">
+                    <div class="text-muted small">${category}</div>
+                    <div class="h4 mb-0 fw-bold ${colorClass}">${score.toFixed(1)}</div>
+                </div>
+            `;
+        }).join('');
     }
 
     function renderStudentTrendChart(trend) {
@@ -153,7 +176,7 @@ document.addEventListener('DOMContentLoaded', function() {
             data: {
                 labels: radar.labels,
                 datasets: [{
-                    label: 'Mức độ tích cực',
+                    label: 'Năng lực tổng hợp',
                     data: radar.data,
                     backgroundColor: 'rgba(255, 193, 7, 0.2)',
                     borderColor: 'rgba(255, 193, 7, 1)',
@@ -163,7 +186,13 @@ document.addEventListener('DOMContentLoaded', function() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                scales: { r: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                scales: { 
+                    r: { 
+                        beginAtZero: true, 
+                        max: 10,
+                        ticks: { stepSize: 2 } 
+                    } 
+                },
                 plugins: { legend: { display: false } }
             }
         });
@@ -171,9 +200,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function renderAiInsight(insight) {
         aiInsightBox.innerHTML = `
-            <h4><i class="fas fa-lightbulb text-warning"></i> AI Insight</h4>
-            <p><strong>Xu hướng chung:</strong> <span class="text-primary">${insight.tendency}</span></p>
-            <p class="small text-muted"><strong>Phân tích:</strong> ${insight.reason}</p>
+            <h4><i class="fas fa-lightbulb text-warning"></i> AI Insight & Nhận định Sư phạm</h4>
+            <p><strong>Xu hướng nổi bật:</strong> <span class="text-primary">${insight.tendency}</span></p>
+            <div class="alert alert-light border-start border-4 border-info">
+                <p class="mb-0"><strong>Phân tích chi tiết:</strong> ${insight.reason}</p>
+            </div>
         `;
     }
 
@@ -183,10 +214,10 @@ document.addEventListener('DOMContentLoaded', function() {
         studentSelectDropdown.disabled = true;
         const students = await apiCall('/api/students');
         if (students && students.length > 0) {
-            studentSelectDropdown.innerHTML = '<option value="">-- Chọn học sinh --</option>' + 
+            studentSelectDropdown.innerHTML = '<option value="">-- Chọn học sinh để bắt đầu phân tích --</option>' + 
                 students.map(s => `<option value="${s.id}">${s.full_name}</option>`).join('');
         } else {
-            studentSelectDropdown.innerHTML = '<option value="">Không có dữ liệu</option>';
+            studentSelectDropdown.innerHTML = '<option value="">Không có dữ liệu học sinh</option>';
         }
         studentSelectDropdown.disabled = false;
     }
@@ -198,22 +229,41 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // Hiện vùng chứa và thông báo đang tải
         studentDashboardContainer.classList.remove('hidden');
-        aiInsightBox.innerHTML = `<div class="loading-spinner"></div><p>AI đang phân tích...</p>`;
+        aiInsightBox.innerHTML = `
+            <div class="text-center p-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2">AI đang thu thập dữ liệu và phân tích phong cách...</p>
+            </div>`;
         
         const data = await apiCall(`/api/students/${studentId}/analysis`);
+        
         if (data) {
+            // 1. Chỉ số KPI (Phong cách, Tổng phát biểu, Thế mạnh)
             renderStudentKpis(data.kpis);
+            
+            // 2. Điểm số thực tế (Dữ liệu mới cập nhật)
+            renderRawScores(data.raw_scores);
+            
+            // 3. Biểu đồ đường xu hướng
             renderStudentTrendChart(data.trend);
+            
+            // 4. Biểu đồ Radar năng lực
             renderStudentSubjectRadarChart(data.radar);
+            
+            // 5. Nội dung nhận xét AI
             renderAiInsight(data.insight);
         } else {
-            studentDashboardContainer.innerHTML = '<p class="text-danger">Lỗi tải dữ liệu phân tích cho học sinh này.</p>';
+            studentDashboardContainer.innerHTML = '<div class="alert alert-danger">Lỗi tải dữ liệu phân tích. Vui lòng thử lại sau.</div>';
         }
     }
 
     async function initializePage() {
+        // Tải danh sách học sinh vào dropdown
         populateStudentDropdown();
+
+        // Tải dữ liệu thống kê tổng thể của lớp
         const data = await apiCall('/api/statistics');
         if (data) {
             renderKpiCards(data.kpis);
@@ -222,7 +272,7 @@ document.addEventListener('DOMContentLoaded', function() {
             renderSubjectDistributionChart(data.subject_analysis);
             renderSubjectDetails(data.subject_analysis);
         } else {
-            document.body.innerHTML = '<p class="text-danger text-center mt-5">Không thể tải dữ liệu dashboard. Vui lòng kiểm tra kết nối và API.</p>';
+            console.error("Không thể tải dữ liệu initializePage");
         }
     }
 
