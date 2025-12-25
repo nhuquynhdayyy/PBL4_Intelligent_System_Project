@@ -21,7 +21,6 @@ def recognize_face(frame):
     try:
         # Tăng cường độ sắc nét/tương phản nhẹ
         frame = cv2.detailEnhance(frame, sigma_s=10, sigma_r=0.15) 
-        # TỐI ƯU: YOLO đã cắt mặt rồi, nên detector_backend để 'skip' để chạy cực nhanh
         objs = DeepFace.represent(frame, model_name="Facenet512", enforce_detection=False, detector_backend='skip')
         if not objs: return "Unknown", 1.0
         emb = objs[0]['embedding']
@@ -38,8 +37,4 @@ def recognize_face(frame):
                 min_dist = dist
                 best_match = student_id
 
-    # Với Facenet512 và Cosine:
-    # < 0.3: Rất giống (Chủ nhân)
-    # 0.3 - 0.4: Khá giống
-    # > 0.4: Người lạ
     return best_match, min_dist

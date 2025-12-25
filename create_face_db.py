@@ -1,4 +1,4 @@
-# File: create_face_db.py (version TOI UU TOC DO)
+# File: create_face_db.py 
 import os
 import cv2
 import pickle
@@ -9,7 +9,7 @@ from tqdm import tqdm
 # --- CAU HINH ---
 DATASET_PATH = "datasets/faces"
 DB_PATH = "face_db.pkl"
-MODEL_NAME = "Facenet512"   # nen dung Facenet512 cho do chinh xac cao
+MODEL_NAME = "Facenet512"   
 
 print("[INFO] Dang tai model DeepFace...")
 model = DeepFace.build_model(MODEL_NAME)
@@ -33,7 +33,6 @@ if __name__ == "__main__":
 
     face_db = {}
 
-    # CHI LAY THU MUC, BO FILE .pkl, .txt...
     students = [
         f for f in os.listdir(DATASET_PATH)
         if os.path.isdir(os.path.join(DATASET_PATH, f))

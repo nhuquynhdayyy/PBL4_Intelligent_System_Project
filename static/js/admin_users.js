@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // --- XỬ LÝ XÓA (CŨNG CÓ THỂ DÙNG POP-UP NÀY) ---
+    // --- XỬ LÝ XÓA ---
     const deleteBtns = document.querySelectorAll('.delete-teacher-btn');
     deleteBtns.forEach(btn => {
         btn.addEventListener('click', async function () {

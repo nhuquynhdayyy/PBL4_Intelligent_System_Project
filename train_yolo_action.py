@@ -112,21 +112,7 @@ def export_to_excel_with_charts(df, output_excel):
     log_sheet = writer.sheets['Training_Validation_Log']
     num_epochs = len(df)
 
-    # # Biểu đồ Loss
-    # chart_loss = workbook.add_chart({'type': 'scatter', 'subtype': 'straight_with_markers'})
-    # chart_loss.add_series({
-    #     'name': 'Train Box Loss',
-    #     'categories': ['Training_Validation_Log', 1, 0, num_epochs, 0],
-    #     'values':     ['Training_Validation_Log', 1, 1, num_epochs, 1],
-    # })
-    # chart_loss.add_series({
-    #     'name': 'Val Box Loss',
-    #     'categories': ['Training_Validation_Log', 1, 0, num_epochs, 0],
-    #     'values':     ['Training_Validation_Log', 1, 4, num_epochs, 4],
-    # })
-    # chart_loss.set_title({'name': 'Quá trình 50 Epoch (Loss)'})
-    # log_sheet.insert_chart('P2', chart_loss)
-    # 1. Biểu đồ Loss (Sửa lại index cột từ 1 thành 2, và từ 4 thành 5)
+    # 1. Biểu đồ Loss
     chart_loss = workbook.add_chart({'type': 'scatter', 'subtype': 'straight_with_markers'})
     chart_loss.add_series({
         'name':       'Train Box Loss',
@@ -157,25 +143,24 @@ def export_to_excel_with_charts(df, output_excel):
 
 def train_and_report():
     # 1. Nạp file last.pt (đã học 30 epoch) làm nền tảng
-    # KHÔNG dùng resume=True vì nó gây lỗi khi đã hoàn thành mục tiêu cũ
     model = YOLO("runs/detect/train/weights/last.pt") 
 
-    # 2. Bắt đầu Training THÊM 20 Epoch nữa (để tổng là 50)
+    # 2. Bắt đầu Training THÊM 20 Epoch nữa 
     print("[INFO] Đang huấn luyện thêm 20 Epoch dựa trên kết quả cũ...")
     results = model.train(
         data="action_data/data.yaml", 
-        epochs=20,     # Học thêm 20 vòng
+        epochs=20,     
         imgsz=640, 
         device='cpu' 
     )
 
-    # 3. ĐƯỜNG DẪN: Lấy thư mục mới (thường là train3 hoặc train4)
+    # 3. ĐƯỜNG DẪN: Lấy thư mục mới 
     new_train_dir = results.save_dir
     old_csv_path = "runs/detect/train/results.csv" # File 30 epoch đầu
     new_csv_path = os.path.join(new_train_dir, "results.csv") # File 20 epoch sau
     output_excel = "yolo_action_training_report_50_epochs.xlsx"
 
-    # 4. LOGIC NỐI DỮ LIỆU (Để biểu đồ Excel có đủ 50 dòng)
+    # 4. LOGIC NỐI DỮ LIỆU 
     if os.path.exists(old_csv_path) and os.path.exists(new_csv_path):
         df_old = pd.read_csv(old_csv_path)
         df_new = pd.read_csv(new_csv_path)

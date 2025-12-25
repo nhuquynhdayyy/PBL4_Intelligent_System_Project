@@ -53,8 +53,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (response.ok) {
             editModal.hide();
-            // Tải lại trang để thấy thay đổi
-            // Cách tốt hơn là cập nhật DOM, nhưng reload đơn giản và hiệu quả
             window.location.reload(); 
         } else {
             // Hiển thị lỗi từ server trong modal

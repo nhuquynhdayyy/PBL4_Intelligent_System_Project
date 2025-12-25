@@ -19,7 +19,7 @@ def seed_data():
         # Mỗi môn tạo khoảng 5 buổi học để có dữ liệu dày
         all_sessions = []
         for sub in subjects:
-            for i in range(5):
+            for i in range(2):
                 sess = Session(
                     subject_id=sub.id,
                     class_id=sub.class_id,

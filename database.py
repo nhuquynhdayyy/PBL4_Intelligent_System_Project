@@ -24,7 +24,7 @@ class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_code = db.Column(db.String(50), unique=True, nullable=False, comment="Mã định danh, trùng với tên thư mục ảnh")
     full_name = db.Column(db.String(100), nullable=False)
-    # --- CẬP NHẬT: Thêm thông tin chi tiết cho học sinh ---
+    # Thêm thông tin chi tiết cho học sinh 
     date_of_birth = db.Column(db.Date, nullable=True, comment="Ngày sinh của học sinh")
     gender = db.Column(db.String(10), nullable=True, comment="Giới tính: Nam, Nữ, Khác")
     
@@ -33,7 +33,7 @@ class Student(db.Model):
 
     # Mối quan hệ
     speech_logs = db.relationship('SpeechLog', backref='student', lazy='dynamic')
-    # --- CẬP NHẬT: Thêm mối quan hệ với bảng điểm ---
+    # Thêm mối quan hệ với bảng điểm 
     grades = db.relationship('Grade', backref='student', lazy=True)
 
 class Subject(db.Model):
@@ -42,7 +42,7 @@ class Subject(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     icon = db.Column(db.String(10), nullable=True, comment="Biểu tượng emoji")
-    # --- CẬP NHẬT: Thêm phân loại môn học ---
+    # Thêm phân loại môn học
     category = db.Column(db.String(100), nullable=True, comment="Phân loại môn học: Tự nhiên, Xã hội,...")
     
     # Khóa ngoại
@@ -50,7 +50,7 @@ class Subject(db.Model):
     
     # Mối quan hệ
     sessions = db.relationship('Session', backref='subject', lazy=True)
-    # --- CẬP NHẬT: Thêm mối quan hệ với bảng điểm ---
+    # Thêm mối quan hệ với bảng điểm
     grades = db.relationship('Grade', backref='subject', lazy=True)
 
 class Session(db.Model):
@@ -63,10 +63,10 @@ class Session(db.Model):
     
     # Khóa ngoại
     subject_id = db.Column(db.Integer, db.ForeignKey('subjects.id'), nullable=False)
-    class_id = db.Column(db.Integer, db.ForeignKey('classes.id'), nullable=False) # <-- THÊM DÒNG NÀY
+    class_id = db.Column(db.Integer, db.ForeignKey('classes.id'), nullable=False) 
     # Mối quan hệ
     speech_logs = db.relationship('SpeechLog', backref='session', lazy='dynamic')
-    class_ = db.relationship('Class', backref='sessions') # <-- THÊM DÒNG NÀY (tùy chọn nhưng nên có)
+    class_ = db.relationship('Class', backref='sessions') 
 
 class SpeechLog(db.Model):
     """Bảng ghi lại mỗi lượt phát biểu."""
@@ -79,7 +79,7 @@ class SpeechLog(db.Model):
     student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
     session_id = db.Column(db.Integer, db.ForeignKey('sessions.id'), nullable=False)
 
-# --- MỚI: Bảng lưu điểm số của học sinh ---
+# --- Bảng lưu điểm số của học sinh ---
 class Grade(db.Model):
     """Bảng lưu điểm số của học sinh."""
     __tablename__ = 'grades'
@@ -92,8 +92,6 @@ class Grade(db.Model):
     # Khóa ngoại
     student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
     subject_id = db.Column(db.Integer, db.ForeignKey('subjects.id'), nullable=False)
-    
-# Mở file database.py và thêm vào cuối
 
 class User(db.Model, UserMixin):
     """Bảng lưu tài khoản người dùng (giáo viên, admin)."""
@@ -101,8 +99,8 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(256), nullable=False) # Sẽ lưu mật khẩu đã băm
-    role = db.Column(db.String(20), nullable=False, default='teacher') # Vai trò: 'teacher' hoặc 'admin'
+    password_hash = db.Column(db.String(256), nullable=False) 
+    role = db.Column(db.String(20), nullable=False, default='teacher')
     
     # Khóa ngoại: Mỗi giáo viên sẽ được gán cho một lớp học
     # Admin có thể không thuộc lớp nào, nên nullable=True

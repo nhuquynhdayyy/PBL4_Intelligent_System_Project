@@ -142,8 +142,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             </thead>
                             <tbody>
                                 ${historyData.map((h, index) => {
-                                    // Tìm ID thực của session (Backend cần trả về ID này, nếu chưa có hãy check lại API history)
-                                    // Ở đây tạm dùng h.session_id nếu bạn đã cập nhật app.py ở bước trước
                                     return `
                                     <tr class="session-row" style="cursor:pointer" data-session-id="${h.id || h.session_number}" data-num="${h.session_number}">
                                         <td><strong>#${h.session_number}</strong></td>

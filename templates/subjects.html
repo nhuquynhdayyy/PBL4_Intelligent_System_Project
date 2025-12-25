@@ -5,19 +5,10 @@
 {% block content %}
     <h2>Quản lý Môn học - Lớp 9/1</h2>
 
-    <!-- 
-        Nút "Thêm mới" với ID="addSubjectBtn".
-        ID này rất quan trọng để file main.js có thể tìm thấy và gán sự kiện click chính xác.
-    -->
     <button class="btn" id="addSubjectBtn">
         <i class="fa-solid fa-plus"></i> Thêm môn học mới
     </button>
-
-    <!-- 
-        Đây là vùng chứa danh sách các môn học.
-        JavaScript sẽ tìm đến thẻ div có ID="subjectGrid" này 
-        và đổ dữ liệu lấy từ API vào bên trong nó.
-    -->
+    
     <div class="subject-grid" id="subjectGrid" style="margin-top: 20px;">
         <p>Đang tải dữ liệu môn học...</p>
     </div>

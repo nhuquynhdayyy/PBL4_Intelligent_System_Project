@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const result = await apiCall(`/api/students/${id}/analysis`);
             if (!result) return;
 
-            // ✅ API mới trả về: { kpis, trend, radar, insight: {tendency, reason} }
+            // API trả về: { kpis, trend, radar, insight: {tendency, reason} }
             const tendency = result.insight?.tendency || "N/A";
             const reason = result.insight?.reason || "Không có nhận định.";
 

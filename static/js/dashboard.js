@@ -76,7 +76,6 @@ function updateRadarChart(data) {
 
     const ctxRadar = ctxRadarEl.getContext('2d');
     
-    // Nếu đã có biểu đồ trước đó, xóa đi để vẽ mới (tránh lỗi đè chart)
     if (radarChart) radarChart.destroy();
 
     radarChart = new Chart(ctxRadar, {

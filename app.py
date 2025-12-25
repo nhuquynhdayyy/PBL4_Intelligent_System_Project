@@ -15,9 +15,8 @@ import joblib
 import json
 import io
 import csv
-from flask import request, redirect, url_for # Nhớ import thêm
-from database import User # Đảm bảo đã import User
-# === THÊM HOẶC SỬA LẠI DÒNG NÀY Ở ĐẦU FILE app.py ===
+from flask import request, redirect, url_for 
+from database import User 
 from flask_login import LoginManager, login_user, logout_user, current_user, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -57,7 +56,7 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or current_user.role != 'admin':
             flash('Bạn không có quyền truy cập trang này.', 'danger')
-            return redirect(url_for('dashboard')) # Hoặc login
+            return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated_function
 @login_manager.user_loader
@@ -111,8 +110,6 @@ def generate_ai_comment(subject_name, avg_score, speech_count, class_avg_speech)
 # =============================================================
 # === 3. ROUTES GIAO DIỆN (VIEW) ===
 # =============================================================
-### CÁC ROUTE MỚI CHO XÁC THỰC ###
-# Sửa lại hàm register()
 @app.route('/register')
 def register():
     # Không cho phép đăng ký công khai nữa
@@ -155,34 +152,33 @@ def logout():
     return redirect(url_for('login'))
 
 @app.route('/')
-@login_required # <-- THÊM DÒNG NÀY
+@login_required 
 def dashboard(): 
     return render_template('dashboard.html')
 
 
 @app.route('/subjects')
-@login_required # <-- THÊM DÒNG NÀY
+@login_required 
 def subjects(): 
     return render_template('subjects.html')
 
 @app.route('/students')
-@login_required # <-- THÊM DÒNG NÀY
+@login_required 
 def students(): 
     return render_template('students.html')
 
 @app.route('/stats')
-@login_required # <-- THÊM DÒNG NÀY
+@login_required 
 def stats(): 
     return render_template('stats.html') 
 
 @app.route('/live-class')
-@login_required # <-- THÊM DÒNG NÀY
+@login_required 
 def liveclass(): 
     return render_template('liveclass.html')
 
-# Thêm vào khu vực ROUTES GIAO DIỆN
 # =============================================================
-# === 3. ROUTES GIAO DIỆN ADMIN (SỬA LẠI CỤM NÀY) ===
+# === 3. ROUTES GIAO DIỆN ADMIN ===
 # =============================================================
 
 @app.route('/admin/dashboard')
@@ -217,7 +213,7 @@ def admin_classes():
 @admin_required
 def admin_users():
     if request.method == 'POST':
-        # Logic tạo tài khoản giáo viên (giữ nguyên logic bạn đang có)
+        # Logic tạo tài khoản giáo viên
         username = request.form.get('username')
         email = request.form.get('email')
         password = request.form.get('password')
@@ -292,16 +288,14 @@ def delete_teacher(user_id):
     return jsonify({'status': 'success', 'message': 'Đã xóa giáo viên'})
 
 @app.route('/admin/students')
-@admin_required # <-- THÊM DÒNG NÀY
+@admin_required 
 def admin_students():
     return render_template('admin/students.html')
 
 @app.route('/admin/subjects')
-@admin_required # <-- THÊM DÒNG NÀY
+@admin_required 
 def admin_subjects():
     return render_template('admin/subjects.html')
-# === THÊM ROUTE MỚI NÀY VÀO ===
-# === THAY THẾ HÀM CŨ BẰNG HÀM NÀY ===
 
 # === 4. API ENDPOINTS (LOGIC) ===
 # =============================================================
@@ -680,7 +674,7 @@ def statistics_api():
         user_class_id = current_user.class_id
 
 
-        # 1. Bảng xếp hạng học sinh trong lớp (giữ nguyên)
+        # 1. Bảng xếp hạng học sinh trong lớp 
         all_students_ranking_query = db.session.query(
             Student.id, Student.full_name, func.count(SpeechLog.id).label('total_speeches')
         ).outerjoin(SpeechLog).filter(Student.class_id == user_class_id)\
@@ -689,14 +683,14 @@ def statistics_api():
         all_students_ranking = [{'id': s[0], 'name': s[1], 'speeches': s[2]} for s in all_students_ranking_query]
 
 
-        # 2. KPI tổng quan (giữ nguyên)
+        # 2. KPI tổng quan
         total_sessions = Session.query.filter_by(class_id=user_class_id).count()
         total_speeches = SpeechLog.query.join(Session).filter(Session.class_id == user_class_id).count()
         total_students = Student.query.filter_by(class_id=user_class_id).count()
         most_active_student = all_students_ranking[0]['name'] if all_students_ranking else "N/A"
 
 
-        # 3. PHẦN CẦN SỬA: Phân tích chi tiết từng môn học
+        # 3. Phân tích chi tiết từng môn học
         subjects = Subject.query.filter_by(class_id=user_class_id).all()
         subject_analysis = []
         for s in subjects:
@@ -796,7 +790,7 @@ def analyze_student_api(student_id):
                 # Một môn duy nhất có điểm Radar cao nhất
                 actual_best = categories[best_indices[0]]
             
-            # QUAN TRỌNG: Hiển thị ĐIỂM RADAR làm minh chứng thay vì điểm trung bình
+            # Hiển thị ĐIỂM RADAR làm minh chứng thay vì điểm trung bình
             best_score_text = str(max_radar_val)
 
         # 4. Lấy nhận định phong cách từ kết quả huấn luyện AI (file JSON)
@@ -959,7 +953,6 @@ def assign_class_to_user(user_id):
 @admin_required
 def admin_stats_api():
     try:
-        # Giữ nguyên phần KPIs (teachers, classes, students, speeches)
         stats = {
             'teachers': User.query.filter_by(role='teacher').count(),
             'classes': Class.query.count(),
@@ -1062,7 +1055,7 @@ if __name__ == '__main__':
                 username='admin',
                 email='admin@gmail.com',
                 password_hash=hashed_pw,
-                role='admin' # Rất quan trọng để vào được trang quản trị
+                role='admin'
             )
             db.session.add(new_admin)
             db.session.commit()

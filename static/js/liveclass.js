@@ -19,8 +19,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const sessionStatusEl = document.getElementById('session-status-badge');
     const connectionStatusEl = document.getElementById('connection-status');
 
-    // Giả sử bạn có hàm này trong shared.js
-    // Nếu không, bạn phải tự định nghĩa lại logic đóng/mở modal
     const openModal = window.openModal;
     const closeModal = window.closeModal;
 
@@ -218,7 +216,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const total = Object.values(studentStats).reduce((sum, count) => sum + count, 0);
         totalSpeechesCount.textContent = total;
     }
-    // THÊM ĐOẠN CODE MỚI NÀY
 exportDataBtn.addEventListener('click', () => {
     if (!currentSession || Object.keys(studentStats).length === 0) {
         alert("Không có dữ liệu để xuất!");
@@ -237,7 +234,7 @@ exportDataBtn.addEventListener('click', () => {
     // Phương pháp này hiệu quả để trình duyệt tự động tải file
     const form = document.createElement('form');
     form.method = 'POST';
-    form.action = '/api/sessions/export'; // <-- Đây là API bạn cần tạo ở backend
+    form.action = '/api/sessions/export'; 
 
     const hiddenField = document.createElement('input');
     hiddenField.type = 'hidden';

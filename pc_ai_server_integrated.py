@@ -54,9 +54,9 @@ def generate():
 def run_flask():
     app.run(host=AI_SERVER_HOST, port=STREAM_PORT, debug=False, use_reloader=False)
 
-# --- AI WORKER (TRÁI TIM CỦA HỆ THỐNG) ---
+# --- AI WORKER ---
 print("[INFO] Đang nạp mô hình YOLOv8 từ train4/best.pt...")
-# Nạp model bạn vừa train xong
+
 model = YOLO("runs/detect/train4/weights/best.pt")
 
 tracks_data = {} # Khởi tạo biến lưu lịch sử nhận diện
@@ -88,67 +88,6 @@ def ai_worker_loop():
         current_faces = []   # Lưu danh sách các mặt phát hiện được
         current_actions = [] # Lưu danh sách các hành động (đứng/giơ tay)
 
-        # if results[0].boxes.id is not None:
-        #     boxes = results[0].boxes.xyxy.cpu().numpy()
-        #     cls_ids = results[0].boxes.cls.int().cpu().numpy()
-        #     track_ids = results[0].boxes.id.int().cpu().numpy()
-
-        #     for box, cls_id, track_id in zip(boxes, cls_ids, track_ids):
-        #         x1, y1, x2, y2 = map(int, box)
-        #         label_name = model.names[cls_id]
-        #         color = color_map.get(label_name, (255, 255, 255))
-
-        #         # --- TRONG AI_WORKER_LOOP ---
-
-        #         # Thêm Deque để lưu lịch sử nhận diện (đặt ở đầu file hoặc đầu hàm)
-        #         # tracks_data[track_id]['face_history'] = deque(maxlen=10)
-
-        #         # 1. Nếu là KHUÔN MẶT
-        #         if label_name == "face":
-        #             face_w = x2 - x1
-        #             face_h = y2 - y1
-                    
-        #             # CHỈ NHẬN DIỆN KHI MẶT ĐỦ LỚN (Tránh nhận diện nhầm người ở quá xa)
-        #             if face_w > 40 and face_h > 40: 
-        #                 face_crop = frame_to_process[y1:y2, x1:x2]
-        #                 if face_crop.size > 0:
-        #                     # Zoom to để khử nhiễu nhẹ
-        #                     face_zoom = cv2.resize(face_crop, (224, 224)) 
-        #                     name, conf = recognize_face(face_zoom)
-
-        #                     # NGƯỠNG THẮT CHẶT: Giả sử Facenet dùng Cosine Distance (thường < 0.4 là khớp)
-        #                     # Nếu conf của bạn càng nhỏ càng đúng, hãy chỉnh lại con số này
-        #                     if name != "Unknown" and conf < 0.35: 
-        #                         if track_id not in tracks_data:
-        #                             tracks_data[track_id] = {'history': []}
-                                
-        #                         tracks_data[track_id]['history'].append(name)
-                                
-        #                         # CHỈ XÁC NHẬN KHI CÓ 7/10 KHUNG HÌNH TRÙNG TÊN NHAU
-        #                         if len(tracks_data[track_id]['history']) >= 7:
-        #                             occurence_count = Counter(tracks_data[track_id]['history'])
-        #                             final_name, count = occurence_count.most_common(1)[0]
-                                    
-        #                             if count >= 5: # Ít nhất 5 lần xuất hiện cùng 1 tên
-        #                                 tracks_info[track_id] = final_name
-        #                                 display_label = f"{final_name}"
-        #                             else:
-        #                                 display_label = "Scanning..."
-        #                         else:
-        #                             display_label = "Scanning..."
-        #                     else:
-        #                         display_label = "Searching..."
-        #             else:
-        #                 display_label = "Too far to recognize"
-
-        #         # 2. Nếu là HÀNH ĐỘNG PHÁT BIỂU (Đứng hoặc Giơ tay)
-        #         elif label_name in ["hand-raising", "standing"]:
-        #             current_actions.append({'box': (x1, y1, x2, y2), 'label': label_name})
-        #             temp_results.append((x1, y1, x2, y2, label_name.upper(), color))
-                
-        #         # 3. Nếu là ngồi
-        #         else:
-        #             temp_results.append((x1, y1, x2, y2, label_name, color))
         if results[0].boxes.id is not None:
             boxes = results[0].boxes.xyxy.cpu().numpy()
             cls_ids = results[0].boxes.cls.int().cpu().numpy()
@@ -163,7 +102,6 @@ def ai_worker_loop():
                 display_label = label_name
 
                 # 1. XỬ LÝ LỚP FACE
-                # Trong ai_worker_loop
 
                 if label_name == "face":
                     # LUÔN KHỞI TẠO tracks_data cho ID mới, bất kể xa hay gần
@@ -216,7 +154,7 @@ def ai_worker_loop():
                 else: # Lớp Sitting hoặc lớp khác
                     temp_results.append((x1, y1, x2, y2, label_name, (0, 255, 255)))
 
-            # --- LOGIC KẾT HỢP: XÁC NHẬN AI ĐANG PHÁT BIỂU (Bản tối ưu) ---
+            # --- LOGIC KẾT HỢP: XÁC NHẬN AI ĐANG PHÁT BIỂU ---
             current_time = time.time()
             
             for action in current_actions:
@@ -232,16 +170,6 @@ def ai_worker_loop():
                     is_x_aligned = ax1 - 20 <= face_center_x <= ax2 + 20
                     is_y_top = fy1 < ay1 + (ay2 - ay1) * 0.5 # Mặt phải nằm ở nửa trên cơ thể
                     
-                    # if is_x_aligned and is_y_top:
-                    #     if face['name'] != "Unknown":
-                    #         # Đã xác định được ĐÚNG người này đang thực hiện hành động
-                    #         print(f"[XÁC NHẬN] {face['name']} đang {action['label']}")
-                    #         try:
-                    #             requests.post(MAIN_WEB_API_URL, 
-                    #                         json={"student_code": face['name'], "action": action['label']}, 
-                    #                         timeout=0.1)
-                    #         except: pass
-
                     if is_x_aligned and is_y_top:
                         student_name = face['name']
                         

@@ -47,7 +47,7 @@ def train_model(df):
     features_scaled = scaler.fit_transform(features)
     
     training_history = []
-    ks = range(1, 11) # Bắt đầu từ 1 thay vì 2
+    ks = range(1, 11) 
     
     for k in ks:
         km = KMeans(n_clusters=k, random_state=42, n_init='auto')
@@ -59,7 +59,7 @@ def train_model(df):
         if k > 1:
             sil = silhouette_score(features_scaled, km.labels_)
         else:
-            sil = 0 # Hoặc để trống (None) cho K=1
+            sil = 0 
             
         training_history.append({
             'K': k,
@@ -67,7 +67,7 @@ def train_model(df):
             'Silhouette': sil
         })
 
-    # --- XUẤT EXCEL CÓ BIỂU ĐỒ (DÙNG SCATTER ĐỂ CÓ SỐ 0) ---
+    # --- XUẤT EXCEL CÓ BIỂU ĐỒ ---
     history_df = pd.DataFrame(training_history)
     file_name = "clustering_training_report.xlsx"
     
