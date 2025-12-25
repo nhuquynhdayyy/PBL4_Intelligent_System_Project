@@ -1,0 +1,75 @@
+{% extends "admin/admin_layout.html" %}
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4"><i class="fas fa-chart-pie me-2"></i>Hệ thống Thống kê Admin</h2>
+    
+    <!-- KPI Row -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white shadow-sm p-3">
+                <small>Giáo viên</small>
+                <h3 id="kpi-teachers">0</h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white shadow-sm p-3">
+                <small>Lớp học</small>
+                <h3 id="kpi-classes">0</h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white shadow-sm p-3">
+                <small>Học sinh</small>
+                <h3 id="kpi-students">0</h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white shadow-sm p-3">
+                <small>Tổng phát biểu</small>
+                <h3 id="kpi-speeches">0</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- BIỂU ĐỒ 1: ĐƯỜNG ĐUA LỚP HỌC -->
+        <div class="col-md-7 mb-4">
+            <div class="card border-0 shadow-sm p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold m-0"><i class="fas fa-flag-checkered text-danger me-2"></i>Đường đua tương tác giữa các lớp</h5>
+                    <span class="badge bg-light text-dark border">Tất cả môn học</span>
+                </div>
+                <div style="height: 350px;">
+                    <canvas id="classRaceChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- BIỂU ĐỒ 2: PHÂN TÍCH THẾ MẠNH LỚP -->
+        <div class="col-md-5 mb-4">
+            <div class="card border-0 shadow-sm p-4 h-100">
+                <h5 class="fw-bold mb-3"><i class="fas fa-bullseye text-success me-2"></i>Phân tích thế mạnh theo lớp</h5>
+                
+                <!-- Dropdown chọn lớp -->
+                <div class="mb-3">
+                    <select id="classSelect" class="form-select border-primary">
+                        <option value="">-- Chọn lớp để xem chi tiết --</option>
+                        {% for c in classes %}
+                        <option value="{{ c.id }}">{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div style="height: 300px;">
+                    <canvas id="classRadarChart"></canvas>
+                </div>
+                <p class="text-center text-muted small mt-2">Biểu đồ thể hiện sự phân bổ phát biểu qua các môn học</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+
+{% endblock %}

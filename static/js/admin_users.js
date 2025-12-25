@@ -1,59 +1,105 @@
 document.addEventListener('DOMContentLoaded', function () {
-    const selects = document.querySelectorAll('select[data-user-id]');
-    const saveButtons = document.querySelectorAll('.save-assignment-btn');
+    const assignSelectors = document.querySelectorAll('.assign-selector');
+    const saveBtns = document.querySelectorAll('.save-assign-btn');
 
-    // Kích hoạt nút "Lưu" khi người dùng thay đổi lựa chọn trong dropdown
-    selects.forEach(select => {
-        select.addEventListener('change', function () {
-            const userId = this.dataset.userId;
-            const saveBtn = document.querySelector(`.save-assignment-btn[data-user-id="${userId}"]`);
-            if (saveBtn) {
-                saveBtn.disabled = false;
-                saveBtn.classList.remove('btn-success');
-                saveBtn.classList.add('btn-primary'); // Đổi màu để báo hiệu có thay đổi
+    // --- HÀM HIỂN THỊ POP-UP TÙY CHỈNH ---
+    function showPopup(message) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('customConfirmModal');
+            const msgEl = document.getElementById('customConfirmMessage');
+            const okBtn = document.getElementById('okConfirmBtn');
+            const cancelBtn = document.getElementById('cancelConfirmBtn');
+
+            msgEl.innerText = message;
+            modal.classList.add('show'); // Hiển thị modal
+
+            // Xử lý khi nhấn Đồng ý
+            okBtn.onclick = function() {
+                modal.classList.remove('show');
+                resolve(true);
+            };
+
+            // Xử lý khi nhấn Hủy
+            cancelBtn.onclick = function() {
+                modal.classList.remove('show');
+                resolve(false);
+            };
+        });
+    }
+
+    // --- HÀM GỬI DỮ LIỆU ---
+    async function performAssignment(classId, teacherId, confirmSwitch = false) {
+        const btn = document.querySelector(`.save-assign-btn[data-class-id="${classId}"]`);
+
+        try {
+            const res = await fetch(`/api/classes/${classId}/assign_teacher`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    teacher_id: teacherId,
+                    confirm_switch: confirmSwitch 
+                })
+            });
+
+            const result = await res.json();
+
+            // Nếu gặp xung đột (Mã 409) -> Hiện Pop-up tùy chỉnh
+            if (res.status === 409) {
+                const confirmed = await showPopup(result.message);
+                if (confirmed) {
+                    await performAssignment(classId, teacherId, true);
+                } else {
+                    location.reload();
+                }
+                return;
             }
+
+            if (res.ok) {
+                alert("Cập nhật phân công thành công!");
+                location.reload();
+            } else {
+                alert("Lỗi: " + result.message);
+                location.reload();
+            }
+        } catch (err) {
+            alert("Lỗi kết nối máy chủ!");
+            location.reload();
+        }
+    }
+
+    // Sự kiện nhấn nút Lưu
+    saveBtns.forEach(btn => {
+        btn.addEventListener('click', function () {
+            const classId = this.dataset.classId;
+            const teacherId = document.querySelector(`.assign-selector[data-class-id="${classId}"]`).value;
+
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+            performAssignment(classId, teacherId, false);
         });
     });
 
-    // Xử lý sự kiện khi nhấn nút "Lưu"
-    saveButtons.forEach(button => {
-        button.addEventListener('click', async function () {
-            if (this.disabled) return; // Thêm dòng này để tránh click khi nút bị vô hiệu hóa
+    // Bật nút Lưu khi đổi select
+    assignSelectors.forEach(select => {
+        select.addEventListener('change', function () {
+            const classId = this.dataset.classId;
+            const btn = document.querySelector(`.save-assign-btn[data-class-id="${classId}"]`);
+            btn.disabled = false;
+            btn.classList.replace('btn-success', 'btn-primary');
+        });
+    });
 
-            this.disabled = true;
-            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang lưu...';
-            
-            const userId = this.dataset.userId;
-            const select = document.querySelector(`select[data-user-id="${userId}"]`);
-            const classId = select.value;
-
-            try {
-                const response = await fetch(`/api/users/${userId}/assign_class`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ class_id: classId }),
-                });
-
-                const result = await response.json();
-                
-                if (response.ok) {
-                    // Thay đổi giao diện để báo thành công
-                    this.classList.remove('btn-primary');
-                    this.classList.add('btn-success');
-                    this.innerHTML = '<i class="fas fa-check"></i> Đã lưu';
-                    // Nút sẽ tự động bị vô hiệu hóa ở lần tải lại trang tiếp theo, 
-                    // hoặc bạn có thể vô hiệu hóa lại sau 1-2 giây nếu muốn
-                } else {
-                    alert(`Lỗi: ${result.message}`);
-                    this.innerHTML = '<i class="fas fa-save"></i> Lưu';
-                    this.disabled = false; // Bật lại nút nếu có lỗi
-                }
-            } catch (error) {
-                alert('Lỗi kết nối đến server.');
-                this.innerHTML = '<i class="fas fa-save"></i> Lưu';
-                this.disabled = false; // Bật lại nút nếu có lỗi
+    // --- XỬ LÝ XÓA (CŨNG CÓ THỂ DÙNG POP-UP NÀY) ---
+    const deleteBtns = document.querySelectorAll('.delete-teacher-btn');
+    deleteBtns.forEach(btn => {
+        btn.addEventListener('click', async function () {
+            const id = this.dataset.id;
+            const name = this.dataset.name;
+            const confirmed = await showPopup(`Bạn có chắc chắn muốn xóa giáo viên "${name}"?`);
+            if (confirmed) {
+                const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+                if (res.ok) location.reload();
             }
         });
     });
