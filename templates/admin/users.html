@@ -1,103 +1,127 @@
 {% extends "admin/admin_layout.html" %}
 
-{% block title %}Quản lý Người dùng & Phân công{% endblock %}
-
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="fas fa-users-cog me-2"></i> Quản lý Người dùng & Phân công</h1>
+<div class="container-fluid">
+    <h2 class="mb-4"><i class="fas fa-users-cog text-primary me-2"></i>Phân công</h2>
+
+    <!-- PHẦN 1: BẢNG PHÂN CÔNG (LỚP LÀ CỐ ĐỊNH) -->
+    <div class="card shadow-sm border-0 mb-5">
+        <div class="card-header bg-white fw-bold">
+            <i class="fas fa-clipboard-list me-2"></i>Phân công chủ nhiệm theo Lớp
+        </div>
+        <div class="card-body">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 30%;">Tên Lớp học</th>
+                        <th style="width: 50%;">Giáo viên phụ trách</th>
+                        <th class="text-center">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in classes %}
+                    <tr>
+                        <td><strong>{{ c.name }}</strong> <small class="text-muted">({{ c.academic_year }})</small></td>
+                        <td>
+                            <select class="form-select assign-selector" data-class-id="{{ c.id }}">
+                                <option value="0">-- Chưa có giáo viên --</option>
+                                {% for t in teachers %}
+                                    {# Tìm xem giáo viên này có đang phụ trách lớp này không #}
+                                    <option value="{{ t.id }}" {% if t.class_id == c.id %}selected{% endif %}>
+                                        {{ t.username }} ({{ t.email }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-success save-assign-btn" data-class-id="{{ c.id }}" disabled>
+                                <i class="fas fa-save"></i> Lưu
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- PHẦN 2: FORM TẠO TÀI KHOẢN -->
+    <div class="card shadow-sm border-0 mb-5 bg-light">
+        <div class="card-body">
+            <h5 class="fw-bold mb-3"><i class="fas fa-user-plus me-2"></i>Tạo tài khoản giáo viên mới</h5>
+            <form method="POST" action="{{ url_for('admin_users') }}" class="row g-3">
+                <div class="col-md-3">
+                    <input type="text" class="form-control" name="username" placeholder="Tên đăng nhập" required>
+                </div>
+                <div class="col-md-3">
+                    <input type="email" class="form-control" name="email" placeholder="Email" required>
+                </div>
+                <div class="col-md-3">
+                    <input type="password" class="form-control" name="password" placeholder="Mật khẩu" required>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100">Đăng ký giáo viên</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- PHẦN 3: DANH SÁCH GIÁO VIÊN ĐÃ CÓ -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white fw-bold">
+            <i class="fas fa-user-tie me-2"></i>Danh sách Giáo viên hệ thống
+        </div>
+        <div class="card-body">
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Lớp hiện tại</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in teachers %}
+                    <tr>
+                        <td>{{ t.username }}</td>
+                        <td>{{ t.email }}</td>
+                        <td>
+                            {% if t.assigned_class %}
+                                <span class="badge bg-info text-dark">{{ t.assigned_class.name }}</span>
+                            {% else %}
+                                <span class="text-muted">Chưa có lớp</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-outline-danger btn-sm delete-teacher-btn" data-id="{{ t.id }}" data-name="{{ t.username }}">
+                                <i class="fas fa-trash"></i> Xóa
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
-
-<!-- Vùng hiển thị thông báo (flash messages) -->
-{% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        {% endfor %}
-    {% endif %}
-{% endwith %}
-
-<!-- Form tạo tài khoản giáo viên mới -->
-<div class="card mb-4">
-    <div class="card-header fw-bold">
-        <i class="fas fa-user-plus me-2"></i> Tạo tài khoản Giáo viên mới
-    </div>
-    <div class="card-body">
-        <form method="POST" action="{{ url_for('admin_users') }}">
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <label for="username" class="form-label">Tên đăng nhập</label>
-                    <input type="text" class="form-control" id="username" name="username" required>
-                </div>
-                <div class="col-md-4">
-                    <label for="email" class="form-label">Email</label>
-                    <input type="email" class="form-control" id="email" name="email" required>
-                </div>
-                <div class="col-md-4">
-                    <label for="password" class="form-label">Mật khẩu ban đầu</label>
-                    <input type="password" class="form-control" id="password" name="password" required>
-                </div>
-                <div class="col-12 text-end">
-                    <button type="submit" class="btn btn-primary">Tạo tài khoản</button>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Bảng danh sách và phân công giáo viên -->
-<div class="card">
-    <div class="card-header fw-bold">
-        <i class="fas fa-chalkboard-teacher me-2"></i> Phân công Lớp học cho Giáo viên
-    </div>
-    <div class="card-body">
-        <table class="table table-hover align-middle">
-            <thead>
-                <tr>
-                    <th scope="col">Tên đăng nhập</th>
-                    <th scope="col">Email</th>
-                    <th scope="col" style="width: 35%;">Lớp học được phân công</th>
-                    <th scope="col" class="text-center">Hành động</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for user in users %}
-                <tr>
-                    <td><strong>{{ user.username }}</strong></td>
-                    <td>{{ user.email }}</td>
-                    <td>
-                        <!-- Dropdown này phải có chính xác data-user-id -->
-                        <select class="form-select" data-user-id="{{ user.id }}">
-                            <option value="0">-- Chưa phân công --</option>
-                            {% for class_item in classes %}
-                                <option value="{{ class_item.id }}" {% if user.class_id == class_item.id %}selected{% endif %}>
-                                    {{ class_item.name }} ({{ class_item.academic_year }})
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </td>
-                    <td class="text-center">
-                        <!-- Nút này phải có chính xác class và data-user-id -->
-                        <button class="btn btn-sm btn-success save-assignment-btn" data-user-id="{{ user.id }}" disabled>
-                            <i class="fas fa-save"></i> Lưu
-                        </button>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="4" class="text-center text-muted py-4">Chưa có tài khoản giáo viên nào. Hãy tạo một tài khoản mới ở trên.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<!-- Custom Confirm Modal -->
+<div id="customConfirmModal" class="modal">
+    <div class="modal-content" style="max-width: 450px; text-align: center; padding: 30px;">
+        <div style="font-size: 50px; color: #f59e0b; margin-bottom: 15px;">
+            <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <h3 style="font-weight: bold; color: #1e293b; margin-bottom: 10px;">Xác nhận thay đổi</h3>
+        <p id="customConfirmMessage" style="color: #64748b; font-size: 16px; line-height: 1.5; margin-bottom: 25px;"></p>
+        
+        <div style="display: flex; gap: 10px; justify-content: center;">
+            <button id="cancelConfirmBtn" class="btn btn-secondary" style="padding: 10px 25px;">Hủy bỏ</button>
+            <button id="okConfirmBtn" class="btn btn-primary" style="padding: 10px 25px; background-color: #3b82f6;">Đồng ý đổi</button>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-    {{ super() }} <!-- Dòng này hữu ích nếu layout cha của bạn cũng có block scripts -->
-    <!-- Link đến file JavaScript bên ngoài -->
-    <script src="{{ url_for('static', filename='js/admin_users.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin_users.js') }}"></script>
 {% endblock %}

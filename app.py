@@ -183,20 +183,25 @@ def liveclass():
     return render_template('liveclass.html')
 
 # Thêm vào khu vực ROUTES GIAO DIỆN
+# =============================================================
+# === 3. ROUTES GIAO DIỆN ADMIN (SỬA LẠI CỤM NÀY) ===
+# =============================================================
+
 @app.route('/admin/dashboard')
-@admin_required # <-- THÊM DÒNG NÀY
+@login_required
+@admin_required
 def admin_dashboard():
-    return render_template('admin/dashboard.html')
-# Thêm methods=['GET', 'POST'] vào decorator
+    classes = Class.query.all()
+    return render_template('admin/dashboard.html', classes=classes)
+
 @app.route('/admin/classes', methods=['GET', 'POST'])
-@admin_required # <-- THÊM DÒNG NÀY
+@login_required
+@admin_required
 def admin_classes():
     if request.method == 'POST':
         name = request.form.get('class_name')
         year = request.form.get('academic_year')
-        
         if name and year:
-            # Kiểm tra xem tên lớp đã tồn tại chưa
             existing_class = Class.query.filter_by(name=name).first()
             if existing_class:
                 flash(f"Lỗi: Tên lớp '{name}' đã tồn tại.", 'danger')
@@ -206,9 +211,88 @@ def admin_classes():
                 db.session.commit()
                 flash(f"Đã thêm thành công lớp học '{name}'.", 'success')
             return redirect(url_for('admin_classes'))
-
     all_classes = Class.query.order_by(Class.name).all()
     return render_template('admin/classes.html', classes=all_classes)
+
+@app.route('/admin/users', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_users():
+    if request.method == 'POST':
+        # Logic tạo tài khoản giáo viên (giữ nguyên logic bạn đang có)
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+        new_teacher = User(username=username, email=email, password_hash=hashed_password, role='teacher')
+        db.session.add(new_teacher)
+        db.session.commit()
+        flash(f"Đã tạo tài khoản cho giáo viên {username}", "success")
+        return redirect(url_for('admin_users'))
+
+    # Lấy dữ liệu cho 2 bảng
+    classes = Class.query.order_by(Class.name).all()
+    teachers = User.query.filter_by(role='teacher').order_by(User.username).all()
+    return render_template('admin/users.html', classes=classes, teachers=teachers)
+
+# --- API PHÂN CÔNG GIÁO VIÊN VÀO LỚP (Dựa trên ID Lớp) ---
+@app.route('/api/classes/<int:class_id>/assign_teacher', methods=['POST'])
+@login_required
+@admin_required
+def assign_teacher_to_class(class_id):
+    data = request.get_json()
+    new_teacher_id = data.get('teacher_id')
+    confirm_switch = data.get('confirm_switch', False) # Cờ xác nhận từ popup
+
+    # 1. Trường hợp bỏ trống giáo viên cho lớp
+    if not new_teacher_id or int(new_teacher_id) == 0:
+        old_teacher = User.query.filter_by(class_id=class_id).first()
+        if old_teacher:
+            old_teacher.class_id = None
+        db.session.commit()
+        return jsonify({'status': 'success', 'message': 'Đã để trống giáo viên cho lớp này'})
+
+    teacher = db.session.get(User, new_teacher_id)
+    if not teacher:
+        return jsonify({'status': 'error', 'message': 'Không tìm thấy giáo viên'}), 404
+
+    # 2. KIỂM TRA XUNG ĐỘT: Giáo viên này đã quản lý lớp KHÁC chưa?
+    # Tìm lớp mà giáo viên này đang giữ (ngoại trừ lớp hiện tại đang xét)
+    current_class_of_teacher = Class.query.filter(Class.id != class_id).join(User).filter(User.id == new_teacher_id).first()
+
+    if current_class_of_teacher and not confirm_switch:
+        return jsonify({
+            'status': 'conflict',
+            'message': f'Giáo viên "{teacher.username}" hiện đang quản lý lớp "{current_class_of_teacher.name}". Bạn có muốn đổi không?'
+        }), 409 # Gửi mã lỗi 409 để JS nhận diện
+
+    # 3. THỰC HIỆN ĐỔI (Nếu không trùng hoặc đã nhấn "OK" ở popup)
+    
+    # Gỡ giáo viên cũ đang giữ lớp này ra (nếu có)
+    old_teacher_of_class = User.query.filter_by(class_id=class_id).first()
+    if old_teacher_of_class:
+        old_teacher_of_class.class_id = None
+
+    # Gỡ giáo viên mới ra khỏi lớp cũ của họ (nếu có)
+    teacher.class_id = class_id
+    
+    db.session.commit()
+    return jsonify({'status': 'success', 'message': 'Cập nhật phân công thành công'})
+
+# --- API XÓA GIÁO VIÊN ---
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def delete_teacher(user_id):
+    user = db.session.get(User, user_id)
+    if not user or user.role == 'admin':
+        return jsonify({'status': 'error', 'message': 'Không thể xóa'}), 400
+    
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({'status': 'success', 'message': 'Đã xóa giáo viên'})
+
 @app.route('/admin/students')
 @admin_required # <-- THÊM DÒNG NÀY
 def admin_students():
@@ -220,56 +304,7 @@ def admin_subjects():
     return render_template('admin/subjects.html')
 # === THÊM ROUTE MỚI NÀY VÀO ===
 # === THAY THẾ HÀM CŨ BẰNG HÀM NÀY ===
-@app.route('/admin/users', methods=['GET', 'POST'])
-@login_required
-@admin_required
-def admin_users():
-    # Xử lý khi Admin gửi form tạo tài khoản mới (POST request)
-    if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
 
-        # Validation (Kiểm tra dữ liệu)
-        if not username or not email or not password:
-            flash('Vui lòng điền đầy đủ thông tin.', 'danger')
-            return redirect(url_for('admin_users'))
-
-        if User.query.filter_by(username=username).first():
-            flash(f"Tên đăng nhập '{username}' đã tồn tại.", 'danger')
-            return redirect(url_for('admin_users'))
-
-        if User.query.filter_by(email=email).first():
-            flash(f"Email '{email}' đã được sử dụng.", 'danger')
-            return redirect(url_for('admin_users'))
-
-        # Tạo tài khoản mới với vai trò 'teacher'
-        try:
-            hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
-            new_teacher = User(
-                username=username,
-                email=email,
-                password_hash=hashed_password,
-                role='teacher' # Luôn tạo tài khoản với vai trò teacher
-            )
-            db.session.add(new_teacher)
-            db.session.commit()
-            flash(f"Đã tạo thành công tài khoản cho giáo viên '{username}'.", 'success')
-        except Exception as e:
-            db.session.rollback()
-            flash(f"Lỗi khi tạo tài khoản: {e}", 'danger')
-        
-        return redirect(url_for('admin_users'))
-
-    # Phần xử lý GET request (hiển thị danh sách)
-    try:
-        # Chỉ lấy những người dùng có vai trò là 'teacher'
-        users = User.query.filter_by(role='teacher').order_by(User.username).all()
-        # Lấy tất cả các lớp học để hiển thị trong dropdown
-        classes = Class.query.order_by(Class.name).all()
-        return render_template('admin/users.html', users=users, classes=classes)
-    except Exception as e:
-        flash(f"Có lỗi xảy ra khi tải trang: {e}", "danger")
 # === 4. API ENDPOINTS (LOGIC) ===
 # =============================================================
 
@@ -898,22 +933,76 @@ def assign_class_to_user(user_id):
     user = db.session.get(User, user_id)
     if not user:
         return jsonify({'status': 'error', 'message': 'Không tìm thấy người dùng'}), 404
-    
+   
     data = request.get_json()
     class_id = data.get('class_id')
 
-    # Nếu class_id là 0 hoặc không có, tức là "Chưa phân công"
+    # Nếu chọn "Chưa phân công"
     if not class_id or int(class_id) == 0:
         user.class_id = None
-    else:
-        class_obj = db.session.get(Class, int(class_id))
-        if not class_obj:
-            return jsonify({'status': 'error', 'message': 'Không tìm thấy lớp học'}), 404
-        user.class_id = class_obj.id
-    
-    db.session.commit()
-    return jsonify({'status': 'success', 'message': f'Đã cập nhật phân công cho {user.username}.'})
+        db.session.commit()
+        return jsonify({'status': 'success', 'message': 'Đã hủy phân công.'})
 
+    # KIỂM TRA DUY NHẤT: 1 lớp - 1 giáo viên
+    existing_teacher = User.query.filter(User.class_id == class_id, User.id != user_id).first()
+    if existing_teacher:
+        return jsonify({
+            'status': 'error', 
+            'message': f'Lớp này đã được phân công cho giáo viên "{existing_teacher.username}".'
+        }), 400 
+
+    user.class_id = class_id
+    db.session.commit()
+    return jsonify({'status': 'success', 'message': 'Cập nhật phân công thành công.'})
+# --- API THỐNG KÊ TỔNG QUAN CHO ADMIN ---
+# 1. Cập nhật API thống kê tổng quát
+@app.route('/api/admin/stats')
+@login_required
+@admin_required
+def admin_stats_api():
+    try:
+        # Giữ nguyên phần KPIs (teachers, classes, students, speeches)
+        stats = {
+            'teachers': User.query.filter_by(role='teacher').count(),
+            'classes': Class.query.count(),
+            'students': Student.query.count(),
+            'speeches': SpeechLog.query.count()
+        }
+
+        # BIỂU ĐỒ 1: Đường đua giữa các lớp (Xếp hạng tổng lượt tương tác)
+        race_query = db.session.query(
+            Class.name, func.count(SpeechLog.id).label('total')
+        ).join(Student, Class.id == Student.class_id)\
+         .join(SpeechLog, Student.id == SpeechLog.student_id)\
+         .group_by(Class.id).order_by(desc('total')).all()
+        
+        race_data = {
+            'labels': [r[0] for r in race_query],
+            'values': [r[1] for r in race_query]
+        }
+
+        return jsonify({'kpis': stats, 'race': race_data})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# 2. Tạo API mới: Phân tích thế mạnh môn học của một lớp cụ thể
+@app.route('/api/admin/class_performance/<int:class_id>')
+@login_required
+@admin_required
+def class_performance_api(class_id):
+    # Lấy phân bổ lượt phát biểu theo môn học của lớp được chọn
+    performance = db.session.query(
+        Subject.name, func.count(SpeechLog.id).label('count')
+    ).join(Session, Subject.id == Session.subject_id)\
+     .join(SpeechLog, Session.id == SpeechLog.session_id)\
+     .join(Student, SpeechLog.student_id == Student.id)\
+     .filter(Student.class_id == class_id)\
+     .group_by(Subject.id).all()
+    
+    return jsonify({
+        'labels': [p[0] for p in performance] if performance else ["Chưa có dữ liệu"],
+        'values': [p[1] for p in performance] if performance else [0]
+    })
 # =============================================================
 # === 5. SOCKET.IO ===
 # =============================================================

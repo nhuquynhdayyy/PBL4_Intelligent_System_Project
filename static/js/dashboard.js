@@ -1,38 +1,109 @@
-// static/js/dashboard.js
-document.addEventListener('DOMContentLoaded', async function() {
-    const statsGrid = document.getElementById('statsGrid');
-    const activityFeed = document.getElementById('activityFeed');
-    const totalStudentsHeader = document.getElementById('totalStudentsHeader');
+/**
+ * static/js/dashboard.js
+ * Quản lý biểu đồ và số liệu cho Admin Dashboard
+ */
 
-    // Gọi API để lấy dữ liệu thống kê cho dashboard
-    const data = await apiCall('/api/dashboard_stats');
-    if (!data) {
-        statsGrid.innerHTML = '<p>Không thể tải dữ liệu thống kê.</p>';
-        return;
-    }
+let raceChart, radarChart;
 
-    // Render các thẻ thống kê chính
-    statsGrid.innerHTML = `
-        <div class="stat-card"><h3>${data.stats.subjects}</h3><p>Môn học</p></div>
-        <div class="stat-card"><h3>${data.stats.students}</h3><p>Học sinh</p></div>
-        <div class="stat-card"><h3>${data.stats.sessions}</h3><p>Buổi học</p></div>
-        <div class="stat-card"><h3>${data.stats.speeches}</h3><p>Phát biểu</p></div>
-    `;
-    
-    // Cập nhật tổng số học sinh trên header
-    if (totalStudentsHeader) {
-        totalStudentsHeader.textContent = data.stats.students;
-    }
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        // 1. Tải dữ liệu tổng quát cho KPIs và biểu đồ Đường đua
+        const res = await fetch('/api/admin/stats');
+        const data = await res.json();
 
-    // Render các hoạt động gần đây
-    if (data.recent_activity && data.recent_activity.length > 0) {
-        activityFeed.innerHTML = data.recent_activity.map(act => `
-            <div class="card">
-                <strong>${act.subject_name} - Buổi học #${act.session_number}</strong>
-                <p style="color: #666; font-size: 14px;">Ngày ${act.end_time} - ${act.speech_count} phát biểu được ghi nhận</p>
-            </div>
-        `).join('');
-    } else {
-        activityFeed.innerHTML = '<p>Chưa có hoạt động nào gần đây.</p>';
+        // Cập nhật số liệu KPI (Fix lỗi hiển thị số 0)
+        if (data.kpis) {
+            if (document.getElementById('kpi-teachers'))
+                document.getElementById('kpi-teachers').innerText = data.kpis.teachers;
+            if (document.getElementById('kpi-classes'))
+                document.getElementById('kpi-classes').innerText = data.kpis.classes;
+            if (document.getElementById('kpi-students'))
+                document.getElementById('kpi-students').innerText = data.kpis.students;
+            if (document.getElementById('kpi-speeches'))
+                document.getElementById('kpi-speeches').innerText = data.kpis.speeches;
+        }
+
+        // Khởi tạo biểu đồ Đường đua (Bar Chart ngang)
+        const ctxRaceEl = document.getElementById('classRaceChart');
+        if (ctxRaceEl) {
+            const ctxRace = ctxRaceEl.getContext('2d');
+            raceChart = new Chart(ctxRace, {
+                type: 'bar',
+                data: {
+                    labels: data.race.labels,
+                    datasets: [{
+                        label: 'Tổng lượt tương tác',
+                        data: data.race.values,
+                        backgroundColor: 'rgba(78, 115, 223, 0.8)',
+                        borderRadius: 10,
+                        indexAxis: 'y', // Chế độ biểu đồ ngang
+                    }]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        // 2. Xử lý sự kiện khi chọn lớp từ Dropdown để xem Radar Chart
+        const classSelect = document.getElementById('classSelect');
+        if (classSelect) {
+            classSelect.addEventListener('change', async function() {
+                const classId = this.value;
+                if (!classId) return;
+
+                const resPer = await fetch(`/api/admin/class_performance/${classId}`);
+                const perData = await resPer.json();
+
+                updateRadarChart(perData);
+            });
+        }
+
+    } catch (error) {
+        console.error("Lỗi khi tải dữ liệu Dashboard:", error);
     }
 });
+
+/**
+ * Hàm cập nhật hoặc khởi tạo biểu đồ Radar cho thế mạnh lớp
+ * @param {Object} data Dữ liệu labels và values từ API
+ */
+function updateRadarChart(data) {
+    const ctxRadarEl = document.getElementById('classRadarChart');
+    if (!ctxRadarEl) return;
+
+    const ctxRadar = ctxRadarEl.getContext('2d');
+    
+    // Nếu đã có biểu đồ trước đó, xóa đi để vẽ mới (tránh lỗi đè chart)
+    if (radarChart) radarChart.destroy();
+
+    radarChart = new Chart(ctxRadar, {
+        type: 'radar',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Lượt phát biểu theo môn',
+                data: data.values,
+                fill: true,
+                backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                borderColor: '#10b981',
+                pointBackgroundColor: '#10b981',
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: '#10b981'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                r: { 
+                    beginAtZero: true,
+                    ticks: { stepSize: 1 }
+                }
+            }
+        }
+    });
+}
