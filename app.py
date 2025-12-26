@@ -638,24 +638,43 @@ def dashboard_stats_api():
         return jsonify({"message": "Chưa có dữ liệu lớp"}), 403
         
     try:
+        # 1. KPI tổng quan
         stats = {
             'subjects': Subject.query.filter_by(class_id=user_class_id).count(),
             'students': Student.query.filter_by(class_id=user_class_id).count(),
             'sessions': Session.query.filter_by(class_id=user_class_id).count(),
             'speeches': SpeechLog.query.join(Session).filter(Session.class_id == user_class_id).count()
         }
+        
         recent = []
-        # Lấy lịch sử của lớp này
-        sessions = Session.query.filter_by(status='ended', class_id=user_class_id).order_by(Session.end_time.desc()).limit(3).all()
+        # 2. Lấy 3 buổi học có THỜI GIAN KẾT THÚC mới nhất (Đưa cái vừa học xong lên đầu)
+        # Sắp xếp theo end_time giảm dần (desc)
+        sessions = Session.query.filter_by(class_id=user_class_id)\
+                          .order_by(desc(Session.end_time), desc(Session.id))\
+                          .limit(3).all()
+
         for s in sessions:
+            # 3. LOGIC QUAN TRỌNG: Tính số hiệu (#) dựa trên RANK thời gian
+            # Một buổi là "Buổi thứ bao nhiêu" = Tổng số buổi có thời gian kết thúc <= nó
+            real_session_number = Session.query.filter(
+                Session.class_id == user_class_id,
+                db.or_(
+                    Session.end_time < s.end_time,
+                    db.and_(Session.end_time == s.end_time, Session.id <= s.id)
+                )
+            ).count()
+
             recent.append({
                 'subject_name': s.subject.name,
-                'session_number': s.id,
-                'end_time': s.end_time.strftime('%d/%m/%Y %H:%M'),
+                'session_number': real_session_number,
+                # Đây là thời gian KẾT THÚC buổi học
+                'end_time': s.end_time.strftime('%d/%m/%Y %H:%M') if s.end_time else "Đang diễn ra",
                 'speech_count': SpeechLog.query.filter_by(session_id=s.id).count()
             })
+            
         return jsonify({'stats': stats, 'recent_activity': recent})
     except Exception as e: 
+        print(f"Lỗi Dashboard: {e}")
         return jsonify({"message": f"Lỗi: {str(e)}"}), 500
     
 @app.route('/api/untrained_faces')
