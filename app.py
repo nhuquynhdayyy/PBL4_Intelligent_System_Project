@@ -602,13 +602,6 @@ def end_session_api():
     db.session.commit()
     return jsonify({"status": "success", "message": "Buổi học đã kết thúc."})
 
-# @app.route('/api/sessions/current', methods=['GET'])
-# def get_current_session_api():
-#     session = Session.query.filter_by(status='ongoing').first()
-#     if session:
-#         counts = db.session.query(Student.student_code, func.count(SpeechLog.id)).join(SpeechLog).filter(SpeechLog.session_id == session.id).group_by(Student.student_code).all()
-#         return jsonify({"status": "found", "session_id": session.id, "subject_name": session.subject.name, "speech_counts": dict(counts)})
-#     return jsonify({"status": "not_found"})
 @app.route('/api/sessions/current', methods=['GET'])
 @login_required
 def get_current_session_api():
@@ -640,62 +633,7 @@ def session_history(subject_id):
 def session_details_api(session_id):
     details = db.session.query(Student.full_name, func.count(SpeechLog.id)).join(SpeechLog).filter(SpeechLog.session_id == session_id).group_by(Student.id).all()
     return jsonify([{"name": d[0], "count": d[1]} for d in details])
-# # --- THỐNG KÊ DASHBOARD ---
-# @app.route('/api/dashboard_stats')
-# @login_required
-# def dashboard_stats_api():
-#     user_class_id = current_user.class_id
-#     if not user_class_id:
-#         return jsonify({"message": "Chưa có dữ liệu lớp"}), 403
-        
-#     try:
-#         # 1. KPI tổng quan
-#         stats = {
-#             'subjects': Subject.query.filter_by(class_id=user_class_id).count(),
-#             'students': Student.query.filter_by(class_id=user_class_id).count(),
-#             'sessions': Session.query.filter_by(class_id=user_class_id).count(),
-#             'speeches': SpeechLog.query.join(Session).filter(Session.class_id == user_class_id).count()
-#         }
-        
-#         recent = []
-#         # 2. Lấy 3 buổi học có THỜI GIAN KẾT THÚC mới nhất (Đưa cái vừa học xong lên đầu)
-#         # Sắp xếp theo end_time giảm dần (desc)
-#         sessions = Session.query.filter_by(class_id=user_class_id)\
-#                           .order_by(desc(Session.end_time), desc(Session.id))\
-#                           .limit(3).all()
-
-#         for s in sessions:
-#             # 3. LOGIC QUAN TRỌNG: Tính số hiệu (#) dựa trên RANK thời gian
-#             # Một buổi là "Buổi thứ bao nhiêu" = Tổng số buổi có thời gian kết thúc <= nó
-#             real_session_number = Session.query.filter(
-#                 Session.class_id == user_class_id,
-#                 db.or_(
-#                     Session.end_time < s.end_time,
-#                     db.and_(Session.end_time == s.end_time, Session.id <= s.id)
-#                 )
-#             ).count()
-
-#             recent.append({
-#                 'subject_name': s.subject.name,
-#                 'session_number': real_session_number,
-#                 # Đây là thời gian KẾT THÚC buổi học
-#                 'end_time': s.end_time.strftime('%d/%m/%Y %H:%M') if s.end_time else "Đang diễn ra",
-#                 'speech_count': SpeechLog.query.filter_by(session_id=s.id).count()
-#             })
-            
-#         return jsonify({'stats': stats, 'recent_activity': recent})
-#     except Exception as e: 
-#         print(f"Lỗi Dashboard: {e}")
-#         return jsonify({"message": f"Lỗi: {str(e)}"}), 500
-    
-# @app.route('/api/untrained_faces')
-# def untrained_faces_api():
-#     DATASET_PATH = "datasets/faces"
-#     try:
-#         trained = [d for d in os.listdir(DATASET_PATH) if os.path.isdir(os.path.join(DATASET_PATH, d))]
-#         used = [s.student_code for s in Student.query.all()]
-#         return jsonify([c for c in trained if c not in used])
-#     except: return jsonify([])
+# --- THỐNG KÊ DASHBOARD ---
 @app.route('/api/dashboard_stats')
 @login_required
 def dashboard_stats_api():
@@ -712,7 +650,6 @@ def dashboard_stats_api():
         }
         
         recent = []
-        # SỬA TẠI ĐÂY: Sắp xếp theo THỜI GIAN KẾT THÚC (Mới nhất lên đầu)
         sessions = Session.query.filter_by(class_id=user_class_id)\
                           .order_by(Session.end_time.desc())\
                           .limit(3).all()
@@ -736,135 +673,7 @@ def dashboard_stats_api():
     except Exception as e: 
         return jsonify({"message": str(e)}), 500
     
-# # --- THỐNG KÊ CHI TIẾT (STATS TAB) ---
-# @app.route('/api/statistics')
-# @login_required
-# def statistics_api():
-#     try:
-#         user_class_id = current_user.class_id
-
-
-#         # 1. Bảng xếp hạng học sinh trong lớp 
-#         all_students_ranking_query = db.session.query(
-#             Student.id, Student.full_name, func.count(SpeechLog.id).label('total_speeches')
-#         ).outerjoin(SpeechLog).filter(Student.class_id == user_class_id)\
-#          .group_by(Student.id).order_by(desc('total_speeches')).all()
-       
-#         all_students_ranking = [{'id': s[0], 'name': s[1], 'speeches': s[2]} for s in all_students_ranking_query]
-
-
-#         # 2. KPI tổng quan
-#         total_sessions = Session.query.filter_by(class_id=user_class_id).count()
-#         total_speeches = SpeechLog.query.join(Session).filter(Session.class_id == user_class_id).count()
-#         total_students = Student.query.filter_by(class_id=user_class_id).count()
-#         most_active_student = all_students_ranking[0]['name'] if all_students_ranking else "N/A"
-
-
-#         # 3. Phân tích chi tiết từng môn học
-#         subjects = Subject.query.filter_by(class_id=user_class_id).all()
-#         subject_analysis = []
-#         for s in subjects:
-#             # Truy vấn tìm học sinh tích cực nhất cho môn học s này
-#             top_stu_query = db.session.query(
-#                 Student.full_name, func.count(SpeechLog.id).label('count')
-#             ).join(SpeechLog, Student.id == SpeechLog.student_id)\
-#              .join(Session, SpeechLog.session_id == Session.id)\
-#              .filter(Session.subject_id == s.id)\
-#              .group_by(Student.id)\
-#              .order_by(desc('count')).first()
-
-
-#             if top_stu_query:
-#                 top_name = top_stu_query[0]
-#                 top_count = top_stu_query[1]
-#             else:
-#                 top_name = "N/A"
-#                 top_count = 0
-
-
-#             subject_analysis.append({
-#                 'id': s.id,
-#                 'name': s.name,
-#                 'icon': s.icon,
-#                 'session_count': Session.query.filter_by(subject_id=s.id).count(),
-#                 'total_speeches': db.session.query(func.count(SpeechLog.id)).join(Session).filter(Session.subject_id == s.id).scalar() or 0,
-#                 'top_student_name': top_name,
-#                 'top_student_speeches': top_count
-#             })
-       
-#         return jsonify({
-#             'kpis': {
-#                 "total_sessions": total_sessions, "total_speeches": total_speeches,
-#                 "total_students": total_students, "most_active_student": most_active_student
-#             },
-#             'all_students_ranking': all_students_ranking,
-#             'subject_analysis': subject_analysis
-#         })
-#     except Exception as e:
-#         print(f"Lỗi Statistics API: {e}")
-#         return jsonify({"message": str(e)}), 500
-# @app.route('/api/statistics')
-# @login_required
-# def statistics_api():
-#     try:
-#         user_class_id = current_user.class_id
-#         if not user_class_id:
-#             return jsonify({"message": "Tài khoản chưa được phân lớp"}), 403
-
-#         # 1. Bảng xếp hạng học sinh (Lấy theo ID lớp của Học sinh - CHÍNH XÁC)
-#         all_students_ranking_query = db.session.query(
-#             Student.id, Student.full_name, func.count(SpeechLog.id).label('total_speeches')
-#         ).outerjoin(SpeechLog).filter(Student.class_id == user_class_id)\
-#          .group_by(Student.id).order_by(desc('total_speeches')).all()
-       
-#         all_students_ranking = [{'id': s[0], 'name': s[1], 'speeches': s[2]} for s in all_students_ranking_query]
-
-#         # 2. Sửa lỗi KPI: Tính toán dựa trên Học sinh thuộc lớp đó
-#         total_sessions = Session.query.filter_by(class_id=user_class_id).count()
-        
-#         # Đếm phát biểu: Thay vì join qua Session, ta join qua Student để lấy đúng số 61 như bảng xếp hạng
-#         total_speeches = db.session.query(func.count(SpeechLog.id))\
-#             .join(Student, SpeechLog.student_id == Student.id)\
-#             .filter(Student.class_id == user_class_id).scalar() or 0
-            
-#         total_students = Student.query.filter_by(class_id=user_class_id).count()
-#         most_active_student = all_students_ranking[0]['name'] if all_students_ranking and all_students_ranking[0]['speeches'] > 0 else "N/A"
-
-#         # 3. Phân tích chi tiết từng môn học (Chỉ lấy môn thuộc lớp này)
-#         subjects = Subject.query.filter_by(class_id=user_class_id).all()
-#         subject_analysis = []
-#         for s in subjects:
-#             top_stu_query = db.session.query(
-#                 Student.full_name, func.count(SpeechLog.id).label('count')
-#             ).join(SpeechLog, Student.id == SpeechLog.student_id)\
-#              .join(Session, SpeechLog.session_id == Session.id)\
-#              .filter(Session.subject_id == s.id, Student.class_id == user_class_id)\
-#              .group_by(Student.id)\
-#              .order_by(desc('count')).first()
-
-#             subject_analysis.append({
-#                 'id': s.id,
-#                 'name': s.name,
-#                 'icon': s.icon,
-#                 'session_count': Session.query.filter_by(subject_id=s.id).count(),
-#                 'total_speeches': db.session.query(func.count(SpeechLog.id))\
-#                     .join(Session).filter(Session.subject_id == s.id, Session.class_id == user_class_id).scalar() or 0,
-#                 'top_student_name': top_stu_query[0] if top_stu_query else "N/A",
-#                 'top_student_speeches': top_stu_query[1] if top_stu_query else 0
-#             })
-       
-#         return jsonify({
-#             'kpis': {
-#                 "total_sessions": total_sessions, 
-#                 "total_speeches": total_speeches, # Bây giờ sẽ hiện 68 (61+7) thay vì 0
-#                 "total_students": total_students, 
-#                 "most_active_student": most_active_student
-#             },
-#             'all_students_ranking': all_students_ranking,
-#             'subject_analysis': subject_analysis
-#         })
-#     except Exception as e:
-#         return jsonify({"message": str(e)}), 500
+# --- THỐNG KÊ CHI TIẾT (STATS TAB) ---
 @app.route('/api/statistics')
 @login_required
 def statistics_api():
