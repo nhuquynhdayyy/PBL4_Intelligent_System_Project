@@ -701,29 +701,28 @@ def session_details_api(session_id):
 def dashboard_stats_api():
     user_class_id = current_user.class_id
     if not user_class_id:
-        return jsonify({"message": "Tài khoản chưa được phân lớp"}), 403
+        return jsonify({"message": "Chưa có dữ liệu lớp"}), 403
         
     try:
-        # KPI: Tính toán riêng cho lớp của user hiện tại
         stats = {
             'subjects': Subject.query.filter_by(class_id=user_class_id).count(),
             'students': Student.query.filter_by(class_id=user_class_id).count(),
             'sessions': Session.query.filter_by(class_id=user_class_id).count(),
-            # Chỉ đếm phát biểu của học sinh thuộc lớp này
             'speeches': SpeechLog.query.join(Student).filter(Student.class_id == user_class_id).count()
         }
         
         recent = []
-        # Lấy 3 buổi học mới nhất của lớp này (Dựa theo ID giảm dần)
+        # SỬA TẠI ĐÂY: Sắp xếp theo THỜI GIAN KẾT THÚC (Mới nhất lên đầu)
         sessions = Session.query.filter_by(class_id=user_class_id)\
-                          .order_by(Session.id.desc())\
+                          .order_by(Session.end_time.desc())\
                           .limit(3).all()
 
         for s in sessions:
-            # Tính số thứ tự (#) trong nội bộ lớp này
+            # SỐ HIỆU BUỔI HỌC (#): Phải đếm dựa trên thời gian
+            # (Buổi này là buổi thứ mấy dựa trên thứ tự kết thúc của nó trong lớp)
             real_session_number = Session.query.filter(
                 Session.class_id == user_class_id,
-                Session.id <= s.id
+                Session.end_time <= s.end_time
             ).count()
 
             recent.append({
@@ -873,24 +872,40 @@ def statistics_api():
     if not user_class_id:
         return jsonify({"message": "Chưa có lớp"}), 403
     try:
-        # Bảng xếp hạng học sinh của lớp
+        # 1. Bảng xếp hạng học sinh toàn lớp
         ranking_query = db.session.query(
             Student.full_name, func.count(SpeechLog.id).label('total')
         ).outerjoin(SpeechLog).filter(Student.class_id == user_class_id)\
          .group_by(Student.id).order_by(desc('total')).all()
        
-        # KPI chính xác
+        # 2. KPI tổng số phát biểu của lớp
         total_speeches = db.session.query(func.count(SpeechLog.id))\
                            .join(Student).filter(Student.class_id == user_class_id).scalar() or 0
 
-        # Phân tích theo môn (Chỉ lấy môn thuộc lớp này)
+        # 3. PHÂN TÍCH CHI TIẾT TỪNG MÔN HỌC (Sửa tại đây)
         subjects = Subject.query.filter_by(class_id=user_class_id).all()
         sub_analysis = []
+        
         for s in subjects:
+            # A. Tính tổng phát biểu của môn này trong lớp này
             count = db.session.query(func.count(SpeechLog.id))\
                       .join(Session).filter(Session.subject_id == s.id, Session.class_id == user_class_id).scalar() or 0
+            
+            # B. Tìm học sinh "Tích cực nhất" của riêng môn học này
+            top_stu_query = db.session.query(
+                Student.full_name, func.count(SpeechLog.id).label('c')
+            ).join(SpeechLog, Student.id == SpeechLog.student_id)\
+             .join(Session, SpeechLog.session_id == Session.id)\
+             .filter(Session.subject_id == s.id, Session.class_id == user_class_id)\
+             .group_by(Student.id)\
+             .order_by(desc('c')).first()
+
             sub_analysis.append({
-                'name': s.name, 'icon': s.icon, 'total_speeches': count
+                'name': s.name, 
+                'icon': s.icon, 
+                'total_speeches': count,
+                'top_student_name': top_stu_query[0] if top_stu_query else "N/A",
+                'top_student_speeches': top_stu_query[1] if top_stu_query else 0
             })
 
         return jsonify({
